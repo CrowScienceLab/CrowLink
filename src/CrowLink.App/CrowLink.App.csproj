@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>CrowLink</RootNamespace>
+    <AssemblyName>CrowLink</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0</InformationalVersion>
+    <Authors>CrowScienceLab</Authors>
+    <Company>CrowScienceLab</Company>
+    <Copyright>© 2026 CrowScienceLab</Copyright>
+    <Description>PC 연결, 파일 공유, 마우스·키보드 제어를 위한 무료 Windows 유틸리티</Description>
+    <SatelliteResourceLanguages>ko;en</SatelliteResourceLanguages>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;artifacts\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

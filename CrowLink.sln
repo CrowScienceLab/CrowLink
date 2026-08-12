@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowLink.App", "src\CrowLink.App\CrowLink.App.csproj", "{1DCFE288-FF60-48EF-B5C8-7914FC922BB2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrowLink.Tests", "tests\CrowLink.Tests\CrowLink.Tests.csproj", "{8EF2F116-30EB-40CA-90FD-7BB249762A83}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1DCFE288-FF60-48EF-B5C8-7914FC922BB2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1DCFE288-FF60-48EF-B5C8-7914FC922BB2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1DCFE288-FF60-48EF-B5C8-7914FC922BB2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1DCFE288-FF60-48EF-B5C8-7914FC922BB2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8EF2F116-30EB-40CA-90FD-7BB249762A83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8EF2F116-30EB-40CA-90FD-7BB249762A83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8EF2F116-30EB-40CA-90FD-7BB249762A83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8EF2F116-30EB-40CA-90FD-7BB249762A83}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,33 @@
+namespace CrowLink.Protocol;
+
+public enum MessageType : byte
+{
+    Hello = 1,
+    PairRequest = 2,
+    PairAccept = 3,
+    PairReject = 4,
+    FileMetadata = 10,
+    FileChunk = 11,
+    FileComplete = 12,
+    TransferCancel = 13,
+    Ping = 20,
+    Pong = 21,
+    ClipboardText = 30,
+    ClipboardImage = 31,
+    MonitorInfo = 40,
+    MouseControlRequest = 41,
+    MouseControlAccept = 42,
+    MouseControlReject = 43,
+    MouseMove = 44,
+    MouseButton = 45,
+    MouseWheel = 46,
+    MouseControlStop = 47,
+    KeyboardInput = 48,
+    KeyboardReset = 49,
+    ExplorerDragOffer = 50,
+    ExplorerDragAccept = 51,
+    ExplorerDragReject = 52,
+    ExplorerDragReady = 53,
+    ExplorerDragAbort = 54,
+    Error = 255,
+}
