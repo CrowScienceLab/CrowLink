@@ -14,6 +14,13 @@ using CrowLink.Services.Settings;
 using CrowLink.Services.Theming;
 using CrowLink.Services.RemoteMouse;
 using CrowLink.Services.Explorer;
+using CrowLink.Services.Mobile;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 using CrowLink.Utilities;
 using CrowLink.ViewModels;
 using CrowLink.Views;
@@ -41,6 +48,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Per-monitor DPI manifest", PerMonitorDpiManifestAsync),
     ("Pending list stays in drop area", PendingListStaysInDropAreaAsync),
     ("Feature navigation uses SVG paths", FeatureNavigationUsesSvgPathsAsync),
+    ("Mobile pointer math and network policy", MobilePointerMathAndNetworkPolicyAsync),
+    ("Mobile QR structure", MobileQrStructureAsync),
+    ("Mobile web server and pairing", MobileWebServerAndPairingAsync),
     ("Transfer item renders in WPF", TransferItemRendersInWpfAsync),
 };
 
@@ -244,7 +254,7 @@ static async Task RemoteMouseProtocolPayloadsAsync()
     var move = ProtocolSerializer.Deserialize<MouseMoveMessage>(frame);
     Assert(frame.Type == MessageType.MouseMove, "Remote mouse frame type mismatch.");
     Assert(move.SessionId == sessionId && move.X == 0.25 && move.Y == 0.75, "Remote mouse payload mismatch.");
-    Assert(ProtocolSerializer.ProtocolVersion == 5, "CrowLink 1.0 requires protocol version 5.");
+    Assert(ProtocolSerializer.ProtocolVersion == 5, "CrowLink 1.5 must preserve PC protocol version 5.");
 }
 
 static async Task KeyboardProtocolPayloadsAsync()
@@ -392,7 +402,7 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
     var xamlPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml");
     var xaml = await File.ReadAllTextAsync(xamlPath);
     Assert(xaml.Contains("Title=\"CrowLink Connect/Share/Control\"", StringComparison.Ordinal), "The compact window title is missing.");
-    Assert(xaml.Contains("CrowLink 1.0", StringComparison.Ordinal), "The in-window CrowLink 1.0 version title is missing.");
+    Assert(xaml.Contains("CrowLink 1.5", StringComparison.Ordinal), "The in-window CrowLink 1.5 version title is missing.");
     Assert(xaml.Contains("ConnectionStatusText", StringComparison.Ordinal), "The persistent connection-status badge is missing.");
     Assert(xaml.Contains("ItemsSource=\"{Binding Devices}\"", StringComparison.Ordinal) && xaml.Contains("<ComboBox", StringComparison.Ordinal), "Connect devices must use a pull-down menu.");
     Assert(xaml.Contains("Text=\"{Binding Name}\"", StringComparison.Ordinal), "Device pull-down must render the actual device name.");
@@ -401,7 +411,7 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
     Assert(xaml.Contains("WindowChrome.IsHitTestVisibleInChrome=\"True\"", StringComparison.Ordinal), "Title-bar controls must remain interactive inside the caption region.");
     Assert(xaml.Contains("DropShadowEffect Color=\"#37B7E6\"", StringComparison.Ordinal), "Navigation hover must expose the Bright Sky Blue glow effect.");
     Assert(xaml.Contains("Width=\"27\" Height=\"27\"", StringComparison.Ordinal), "Primary navigation icons must use the enlarged 27px presentation.");
-    Assert(xaml.Contains("PC CONNECT / FILE SHARE / MOUSE KEYBOARD CONTROL", StringComparison.Ordinal), "The product subtitle must describe the three primary capabilities.");
+    Assert(xaml.Contains("PC CONNECT / SHARE / CONTROL / MOBILE TOUCHPAD", StringComparison.Ordinal), "The product subtitle must include Mobile Touchpad.");
     Assert(xaml.Contains("OpenHelpButton_Click", StringComparison.Ordinal), "The persistent top help button is missing.");
     Assert(xaml.Contains("CrowScienceLab", StringComparison.Ordinal), "The CrowScienceLab copyright notice is missing from the main window.");
     var helpPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "HelpWindow.xaml");
@@ -409,7 +419,8 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
     Assert(helpXaml.Contains("CONNECT · PC 연결", StringComparison.Ordinal) &&
            helpXaml.Contains("SHARE · 파일과 클립보드 공유", StringComparison.Ordinal) &&
            helpXaml.Contains("CONTROL · 마우스와 키보드 제어", StringComparison.Ordinal) &&
-           helpXaml.Contains("EXPLORER · 원하는 폴더로 가져오기", StringComparison.Ordinal), "Help must explain all four feature areas.");
+           helpXaml.Contains("EXPLORER · 원하는 폴더로 가져오기", StringComparison.Ordinal) &&
+           helpXaml.Contains("MOBILE · 휴대폰 무선 터치패드", StringComparison.Ordinal), "Help must explain all five feature areas.");
     Assert(helpXaml.Contains("누구나 자유롭게 사용할 수 있는 무료 유틸리티", StringComparison.Ordinal), "Help must include the free-use notice.");
     Assert(xaml.Contains("DynamicResource ShellBrush", StringComparison.Ordinal) && xaml.Contains("DynamicResource SurfaceBrush", StringComparison.Ordinal), "The complete shell must participate in Bright Sky theme changes.");
     var settingsPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "SettingsWindow.xaml");
@@ -418,13 +429,103 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
            settingsXaml.Contains("AutoApproveShare", StringComparison.Ordinal) &&
            settingsXaml.Contains("AutoApproveControl", StringComparison.Ordinal) &&
            settingsXaml.Contains("AutoApproveExplorer", StringComparison.Ordinal), "All four automatic approval options must be visible in Settings.");
+    Assert(settingsXaml.Contains("EnableMobileTouchpad", StringComparison.Ordinal) &&
+           settingsXaml.Contains("MobileSensitivity", StringComparison.Ordinal) &&
+           settingsXaml.Contains("MobileLocalNetworkOnly", StringComparison.Ordinal), "Mobile safety and sensitivity settings are missing.");
     Assert(xaml.Contains("ItemsSource=\"{Binding MonitorTopologyItems}\"", StringComparison.Ordinal), "Control must render real monitor topology items.");
     Assert(xaml.Contains("MonitorItem_MouseMove", StringComparison.Ordinal), "Monitor groups must be draggable.");
     Assert(xaml.Contains("Command=\"{Binding ShowConnectCommand}\"", StringComparison.Ordinal), "Connect navigation icon is missing.");
     Assert(xaml.Contains("Command=\"{Binding ShowExplorerCommand}\"", StringComparison.Ordinal), "Explorer navigation icon is missing.");
+    Assert(xaml.Contains("Command=\"{Binding ShowMobileCommand}\"", StringComparison.Ordinal), "Mobile navigation icon is missing.");
     Assert(xaml.Count(character => character == '<') > 20 && xaml.Contains("<Path Stroke=", StringComparison.Ordinal), "SVG path geometry icons are missing.");
     Assert(xaml.Contains("Visibility=\"{Binding ConnectVisibility}\"", StringComparison.Ordinal) &&
-           xaml.Contains("Visibility=\"{Binding ExplorerVisibility}\"", StringComparison.Ordinal), "Feature pages are not separated by navigation.");
+           xaml.Contains("Visibility=\"{Binding ExplorerVisibility}\"", StringComparison.Ordinal) &&
+           xaml.Contains("Visibility=\"{Binding MobileVisibility}\"", StringComparison.Ordinal), "Feature pages are not separated by navigation.");
+}
+
+static Task MobilePointerMathAndNetworkPolicyAsync()
+{
+    var precise = MobilePointerMath.ScaleMovement(1, -1, 1, true);
+    var fast = MobilePointerMath.ScaleMovement(30, -30, 1, true);
+    Assert(Math.Abs(precise.X) < 2 && Math.Abs(precise.Y) < 2, "Slow touch movement must remain precise.");
+    Assert(Math.Abs(fast.X) > 30 && Math.Abs(fast.Y) > 30, "Fast swipe must receive pointer acceleration.");
+    Assert(MobilePointerMath.ScaleWheel(120, 1.5) == 180, "Mobile scroll speed was not applied.");
+    Assert(MobileTouchpadService.IsPrivateOrLocal(IPAddress.Parse("192.168.1.30")), "Private IPv4 must be accepted.");
+    Assert(MobileTouchpadService.IsPrivateOrLocal(IPAddress.Loopback), "Loopback must be accepted for diagnostics.");
+    Assert(!MobileTouchpadService.IsPrivateOrLocal(IPAddress.Parse("8.8.8.8")), "Public IPv4 must be rejected by local-only mode.");
+    return Task.CompletedTask;
+}
+
+static Task MobileQrStructureAsync()
+{
+    var matrix = MobileQrCode.Encode("http://192.168.1.20:45102/mobile");
+    Assert(matrix.GetLength(0) == 37 && matrix.GetLength(1) == 37, "Built-in QR must use version 5 dimensions.");
+    Assert(matrix[3, 3] && matrix[33, 3] && matrix[3, 33], "QR finder centers are missing.");
+    Assert(!matrix[1, 1] && matrix[0, 0], "QR finder rings are malformed.");
+    Assert(matrix.Cast<bool>().Count(value => value) is > 350 and < 1000, "QR dark-module density is invalid.");
+    return Task.CompletedTask;
+}
+
+static async Task MobileWebServerAndPairingAsync()
+{
+    var probe = new TcpListener(IPAddress.Loopback, 0);
+    probe.Start();
+    var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+    probe.Stop();
+    var settings = new AppSettings
+    {
+        DeviceName = "CROW-TEST",
+        MobileTouchpadPort = port,
+        MobileLocalNetworkOnly = false,
+    };
+    await using var log = new LogService();
+    await using var service = new MobileTouchpadService(settings, log);
+    service.PairingRequested += request => Task.FromResult(
+        request.DeviceName == "TEST PHONE" && request.DeviceType == DeviceType.MobileBrowser);
+    await service.StartAsync();
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    var html = await http.GetStringAsync($"http://127.0.0.1:{port}/mobile");
+    Assert(html.Contains("CrowLink 1.5", StringComparison.Ordinal) && html.Contains("TOUCHPAD", StringComparison.Ordinal), "Mobile web touchpad page was not served.");
+    Assert(html.Contains("requestAnimationFrame", StringComparison.Ordinal), "Mobile move coalescing is missing.");
+    Assert(html.Contains("inputmode=\"numeric\"", StringComparison.Ordinal) &&
+           html.IndexOf("<section id=\"pair\"", StringComparison.Ordinal) > html.IndexOf("</main>", StringComparison.Ordinal),
+        "Pairing input must be outside the gesture pad so one tap can focus it.");
+    Assert(html.Contains("requestFullscreen", StringComparison.Ordinal) && html.Contains("id=\"penMode\"", StringComparison.Ordinal) &&
+           html.Contains("type:'settings'", StringComparison.Ordinal) && html.Contains("type:'pen'", StringComparison.Ordinal),
+        "Fullscreen, pen mode, or mobile session controls are missing.");
+
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+    using (var rejectedSocket = new ClientWebSocket())
+    {
+        await rejectedSocket.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), timeout.Token);
+        var incorrectCode = service.PairingCode == "000000" ? "000001" : "000000";
+        var rejectedHello = JsonSerializer.SerializeToUtf8Bytes(new { type = "hello", code = incorrectCode, name = "UNKNOWN PHONE" });
+        await rejectedSocket.SendAsync(rejectedHello, WebSocketMessageType.Text, true, timeout.Token);
+        var rejectedBuffer = new byte[2048];
+        var rejectedResponse = await rejectedSocket.ReceiveAsync(rejectedBuffer, timeout.Token);
+        var rejectedText = Encoding.UTF8.GetString(rejectedBuffer, 0, rejectedResponse.Count);
+        Assert(rejectedText.Contains("\"type\":\"error\"", StringComparison.Ordinal), "Incorrect mobile pairing code was not rejected.");
+    }
+
+    using var socket = new ClientWebSocket();
+    await socket.ConnectAsync(new Uri($"ws://127.0.0.1:{port}/ws"), timeout.Token);
+    var hello = JsonSerializer.SerializeToUtf8Bytes(new { type = "hello", code = service.PairingCode, name = "TEST PHONE" });
+    await socket.SendAsync(hello, WebSocketMessageType.Text, true, timeout.Token);
+    var responseBuffer = new byte[2048];
+    var response = await socket.ReceiveAsync(responseBuffer, timeout.Token);
+    var responseText = Encoding.UTF8.GetString(responseBuffer, 0, response.Count);
+    Assert(responseText.Contains("\"type\":\"paired\"", StringComparison.Ordinal), "Approved mobile client did not receive a session.");
+    Assert(responseText.Contains("\"monitors\"", StringComparison.Ordinal) && responseText.Contains("\"sensitivity\"", StringComparison.Ordinal),
+        "Approved mobile client did not receive monitor and sensitivity settings.");
+    Assert(service.HasActiveSession && service.Session?.DeviceName == "TEST PHONE", "Approved mobile session was not registered.");
+    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "test complete", timeout.Token);
+    for (var attempt = 0; attempt < 40 && service.IsRunning; attempt++)
+    {
+        await Task.Delay(50);
+    }
+
+    Assert(!service.IsRunning && !settings.EnableMobileTouchpad, "Mobile server must remain stopped after the phone disconnects.");
 }
 
 static async Task PerMonitorDpiManifestAsync()
@@ -488,7 +589,7 @@ static Task TransferItemRendersInWpfAsync()
             var buttons = FindVisualChildren<Button>(window).ToArray();
             Assert(buttons.Any(button => Equals(button.Content, "연결 끊기")), "Disconnect button was not rendered.");
             var windowBackground = (SolidColorBrush)window.Background;
-            Assert(windowBackground.Color == Color.FromRgb(0xDF, 0xF6, 0xFF), $"The 1.0 shell must use the Bright Sky Blue page color, actual {windowBackground.Color}.");
+            Assert(windowBackground.Color == Color.FromRgb(0xDF, 0xF6, 0xFF), $"The 1.5 shell must use the Bright Sky Blue page color, actual {windowBackground.Color}.");
 
             viewModel.ShowShareCommand.Execute(null);
             window.UpdateLayout();
@@ -521,6 +622,11 @@ static Task TransferItemRendersInWpfAsync()
             window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             texts = FindVisualChildren<TextBlock>(window).Select(item => item.Text).ToArray();
             Assert(texts.Contains("Explorer Bridge · OLE Lab"), "Explorer feature page was not rendered.");
+            viewModel.ShowMobileCommand.Execute(null);
+            window.UpdateLayout();
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            texts = FindVisualChildren<TextBlock>(window).Select(item => item.Text).ToArray();
+            Assert(texts.Contains("Mobile Touchpad") && texts.Contains("PAIRING CODE"), "Mobile Touchpad feature page was not rendered.");
             var localMonitor = host.RemoteMouse.LocalMonitor;
             Assert(localMonitor.Monitors.Count == localMonitor.MonitorCount, "Monitor descriptors did not match the monitor count.");
             Assert(localMonitor.Monitors.All(monitor => monitor.DpiX >= 96 && monitor.DpiY >= 96), "Monitor DPI metadata was invalid.");

@@ -92,9 +92,9 @@
                         </Viewbox>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="17" FontWeight="Bold" Text="CrowLink 1.0" />
+                        <TextBlock FontSize="17" FontWeight="Bold" Text="CrowLink 1.5" />
                         <TextBlock Margin="0,1,0,0" FontSize="8" Foreground="{DynamicResource SoftTextBrush}"
-                                   Text="PC CONNECT / FILE SHARE / MOUSE KEYBOARD CONTROL" />
+                                   Text="PC CONNECT / SHARE / CONTROL / MOBILE TOUCHPAD" />
                         <TextBlock Margin="0,1,0,0" FontSize="7.5" Foreground="{DynamicResource MutedBrush}"
                                    Text="© 2026 CrowScienceLab · 누구나 자유롭게 사용할 수 있습니다." />
                     </StackPanel>
@@ -104,6 +104,25 @@
                     <StackPanel Orientation="Horizontal">
                         <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center" Fill="{Binding ConnectionStatusBrush}" />
                         <TextBlock VerticalAlignment="Center" FontSize="10" FontWeight="SemiBold" Text="{Binding ConnectionStatusText}" />
+                        <Border Width="1" Height="13" Margin="9,0" Background="{DynamicResource LineBrush}" />
+                        <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding MobileStateBrush}">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMobileSessionActive}" Value="True">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.2" Duration="0:0:0.65" AutoReverse="True" RepeatBehavior="Forever" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock VerticalAlignment="Center" FontSize="8" FontWeight="SemiBold" Text="{Binding MobileHeaderText}" />
                     </StackPanel>
                 </Border>
                 <Button Grid.Column="3" shell:WindowChrome.IsHitTestVisibleInChrome="True"
@@ -128,7 +147,7 @@
             </Grid>
 
             <Border Grid.Row="2" Padding="4" Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="10">
-                <UniformGrid Rows="1" Columns="4">
+                <UniformGrid Rows="1" Columns="5">
                     <Button Style="{StaticResource NavIconButtonStyle}" Tag="{Binding IsConnectSelected}" Command="{Binding ShowConnectCommand}" ToolTip="Connect">
                         <StackPanel>
                             <Viewbox Width="27" Height="27" HorizontalAlignment="Center"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M3,7 L10,7 L10,17 L3,17 Z M14,4 L21,4 L21,14 L14,14 Z M10,10 L14,10" /></Viewbox>
@@ -151,6 +170,12 @@
                         <StackPanel>
                             <Viewbox Width="27" Height="27" HorizontalAlignment="Center"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M3,6 L9,6 L11,9 L21,9 L21,19 L3,19 Z M8,14 L16,14 M14,11 L17,14 L14,17" /></Viewbox>
                             <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" FontWeight="SemiBold" Text="EXPLORER" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource NavIconButtonStyle}" Tag="{Binding IsMobileSelected}" Command="{Binding ShowMobileCommand}" ToolTip="Mobile Touchpad">
+                        <StackPanel>
+                            <Viewbox Width="27" Height="27" HorizontalAlignment="Center"><Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M7,3 L17,3 Q19,3 19,5 L19,21 Q19,23 17,23 L7,23 Q5,23 5,21 L5,5 Q5,3 7,3 Z M9,6 L15,6 M10,20 L14,20 M12,10 C10,10 9,12 10,14 C11,16 14,16 15,14 C16,12 14,10 12,10 Z" /></Viewbox>
+                            <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="10" FontWeight="SemiBold" Text="MOBILE" />
                         </StackPanel>
                     </Button>
                 </UniformGrid>
@@ -390,6 +415,84 @@
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontSize="10" Foreground="{DynamicResource SoftTextBrush}" Visibility="{Binding EmptyExplorerPackagesVisibility}" Text="Explorer 패키지가 없습니다.&#x0a;준비 완료 항목을 Explorer로 끌어내세요." />
                         </Grid>
                     </Border>
+                </Grid>
+            </Grid>
+
+            <Grid Grid.Row="4" Visibility="{Binding MobileVisibility}">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="11" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="Mobile Touchpad" />
+                    <TextBlock Margin="0,3,0,0" FontSize="10" Foreground="{DynamicResource SoftTextBrush}" Text="앱 설치 없이 휴대폰 브라우저를 이 PC의 무선 터치패드로 사용합니다." />
+                </StackPanel>
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="0.9*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="1.1*" /></Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource DarkCardStyle}" Padding="11">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Border Width="188" Height="188" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="5" Background="White" CornerRadius="8">
+                                <Grid>
+                                    <Image Source="{Binding MobileQrImage}" Stretch="Uniform" SnapsToDevicePixels="True" />
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Row="1" Margin="0,9,0,0">
+                                <TextBlock HorizontalAlignment="Center" FontSize="9" Foreground="{DynamicResource SoftTextBrush}" Text="QR을 스캔하거나 아래 주소를 여세요." />
+                                <TextBlock Margin="0,4,0,0" HorizontalAlignment="Center" FontSize="9" Foreground="{DynamicResource AccentTextBrush}" Text="{Binding MobileUrl}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="2">
+                        <Border Style="{StaticResource DarkCardStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel><TextBlock Style="{StaticResource SectionLabelStyle}" Text="PAIRING CODE" /><TextBlock Margin="0,3,0,0" FontSize="28" FontWeight="Bold" FontFamily="Consolas" Foreground="{DynamicResource AccentTextBrush}" Text="{Binding MobilePairingCode}" /></StackPanel>
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center" Padding="9,6" Background="{DynamicResource StatusPanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="8"><TextBlock FontSize="9" Text="{Binding MobileDeviceText}" /></Border>
+                                </Grid>
+                                <TextBlock Margin="0,9,0,0" FontSize="9" Foreground="{DynamicResource SoftTextBrush}" TextWrapping="Wrap" Text="코드를 입력한 휴대폰도 PC의 승인창에서 매번 허용해야 합니다. 승인 후 코드는 즉시 교체됩니다." />
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="0,8,0,0" Style="{StaticResource DarkCardStyle}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="9" Height="9" Margin="0,0,7,0" VerticalAlignment="Center" Fill="{Binding MobileStateBrush}">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMobileSessionActive}" Value="True">
+                                                        <DataTrigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.18" Duration="0:0:0.6" AutoReverse="True" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></DataTrigger.EnterActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock FontSize="11" FontWeight="SemiBold" Text="상태" />
+                                </StackPanel>
+                                <TextBlock Margin="0,5,0,0" FontSize="9.5" Foreground="{DynamicResource SoftTextBrush}" Text="{Binding MobileStatus}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" FontSize="8.5" Foreground="{DynamicResource MutedBrush}" Text="{Binding MobileStatistics}" />
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Button Command="{Binding ToggleMobileServerCommand}" Content="{Binding MobileServerButtonText}" />
+                                    <Button Grid.Column="2" Command="{Binding DisconnectMobileCommand}" Content="{Binding MobileStopButtonText}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMobileSessionActive}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource WhiteBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                                <Grid Margin="0,7,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshMobileCodeCommand}" Content="새 코드" />
+                                    <Button Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding CopyMobileUrlCommand}" Content="주소 복사" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Margin="2,7,2,0" FontSize="8.5" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Text="한 손가락 이동·탭 / 두 손가락 탭·스크롤 / 더블탭 후 이동으로 드래그&#x0a;Ctrl+Alt+Esc로 모바일 입력을 즉시 차단할 수 있습니다." />
+                    </StackPanel>
                 </Grid>
             </Grid>
         </Grid>

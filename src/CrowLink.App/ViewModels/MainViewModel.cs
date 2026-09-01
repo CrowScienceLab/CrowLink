@@ -13,6 +13,7 @@ using CrowLink.Services.Settings;
 using CrowLink.Services.Theming;
 using CrowLink.Protocol;
 using CrowLink.Services.Explorer;
+using CrowLink.Services.Mobile;
 using CrowLink.Utilities;
 using CrowLink.Views;
 
@@ -32,6 +33,7 @@ public sealed class MainViewModel : ObservableObject
     private Brush _connectionStatusBrush = new SolidColorBrush(Color.FromRgb(0x78, 0x88, 0x9B));
     private double _monitorCanvasWidth = 680d;
     private double _monitorCanvasHeight = 220d;
+    private ImageSource? _mobileQrImage;
 
     public MainViewModel(AppHost host)
     {
@@ -56,6 +58,11 @@ public sealed class MainViewModel : ObservableObject
         ShowShareCommand = new RelayCommand(() => SelectedSection = "Share");
         ShowControlCommand = new RelayCommand(() => SelectedSection = "Control");
         ShowExplorerCommand = new RelayCommand(() => SelectedSection = "Explorer");
+        ShowMobileCommand = new RelayCommand(() => SelectedSection = "Mobile");
+        ToggleMobileServerCommand = new AsyncRelayCommand(ToggleMobileServerAsync);
+        DisconnectMobileCommand = new AsyncRelayCommand(DisconnectMobileAsync, () => _host.MobileTouchpad.HasActiveSession);
+        RefreshMobileCodeCommand = new RelayCommand(RefreshMobileCode, () => !_host.MobileTouchpad.HasActiveSession);
+        CopyMobileUrlCommand = new RelayCommand(CopyMobileUrl, () => _host.MobileTouchpad.IsRunning);
 
         Devices.CollectionChanged += OnCollectionChanged;
         Transfers.CollectionChanged += OnCollectionChanged;
@@ -75,6 +82,10 @@ public sealed class MainViewModel : ObservableObject
         _host.RemoteMouse.MonitorChanged += OnRemoteMonitorChanged;
         _host.Explorer.OfferApprovalRequested += RequestExplorerOfferApprovalAsync;
         _host.Explorer.PackageChanged += OnExplorerPackageChanged;
+        _host.MobileTouchpad.PairingRequested += RequestMobilePairingApprovalAsync;
+        _host.MobileTouchpad.StateChanged += OnMobileTouchpadStateChanged;
+        _host.MobileTouchpad.AutoStopped += OnMobileTouchpadAutoStopped;
+        RefreshMobileQr();
         RefreshMonitorTopology();
     }
 
@@ -117,6 +128,11 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand ShowShareCommand { get; }
     public RelayCommand ShowControlCommand { get; }
     public RelayCommand ShowExplorerCommand { get; }
+    public RelayCommand ShowMobileCommand { get; }
+    public AsyncRelayCommand ToggleMobileServerCommand { get; }
+    public AsyncRelayCommand DisconnectMobileCommand { get; }
+    public RelayCommand RefreshMobileCodeCommand { get; }
+    public RelayCommand CopyMobileUrlCommand { get; }
 
     public DeviceInfo? SelectedDevice
     {
@@ -146,10 +162,12 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(ShareVisibility));
                 OnPropertyChanged(nameof(ControlVisibility));
                 OnPropertyChanged(nameof(ExplorerVisibility));
+                OnPropertyChanged(nameof(MobileVisibility));
                 OnPropertyChanged(nameof(IsConnectSelected));
                 OnPropertyChanged(nameof(IsShareSelected));
                 OnPropertyChanged(nameof(IsControlSelected));
                 OnPropertyChanged(nameof(IsExplorerSelected));
+                OnPropertyChanged(nameof(IsMobileSelected));
             }
         }
     }
@@ -158,10 +176,39 @@ public sealed class MainViewModel : ObservableObject
     public Visibility ShareVisibility => SelectedSection == "Share" ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ControlVisibility => SelectedSection == "Control" ? Visibility.Visible : Visibility.Collapsed;
     public Visibility ExplorerVisibility => SelectedSection == "Explorer" ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility MobileVisibility => SelectedSection == "Mobile" ? Visibility.Visible : Visibility.Collapsed;
     public bool IsConnectSelected => SelectedSection == "Connect";
     public bool IsShareSelected => SelectedSection == "Share";
     public bool IsControlSelected => SelectedSection == "Control";
     public bool IsExplorerSelected => SelectedSection == "Explorer";
+    public bool IsMobileSelected => SelectedSection == "Mobile";
+
+    public string MobileStatus => _host.MobileTouchpad.Status;
+    public string MobileUrl => _host.MobileTouchpad.MobileUrl;
+    public string MobilePairingCode
+    {
+        get
+        {
+            var code = _host.MobileTouchpad.PairingCode;
+            return code.Length == 6 ? $"{code[..3]} {code[3..]}" : code;
+        }
+    }
+    public string MobileDeviceText => _host.MobileTouchpad.Session is { } session
+        ? $"{session.DeviceName} · {session.Address}"
+        : "연결된 휴대폰 없음";
+    public string MobileStatistics => _host.MobileTouchpad.Statistics;
+    public string MobileServerButtonText => _host.MobileTouchpad.IsRunning ? "서버 중지" : "서버 시작";
+    public string MobileStopButtonText => _host.MobileTouchpad.HasActiveSession ? "중지" : "중지 대기";
+    public bool IsMobileSessionActive => _host.MobileTouchpad.HasActiveSession;
+    public string MobileHeaderText => _host.MobileTouchpad.HasActiveSession
+        ? "MOBILE ON"
+        : _host.MobileTouchpad.IsRunning ? "MOBILE WAIT" : "MOBILE OFF";
+    public Brush MobileStateBrush => new SolidColorBrush(_host.MobileTouchpad.HasActiveSession
+        ? Color.FromRgb(0x63, 0xED, 0xB0)
+        : _host.MobileTouchpad.IsRunning
+            ? Color.FromRgb(0xFF, 0xD0, 0x70)
+            : Color.FromRgb(0x62, 0x72, 0x7D));
+    public ImageSource? MobileQrImage => _mobileQrImage;
 
     public string ServiceStatus
     {
@@ -331,6 +378,23 @@ public sealed class MainViewModel : ObservableObject
             await _host.Connections.StartAsync().ConfigureAwait(true);
             await _host.Discovery.StartAsync().ConfigureAwait(true);
             ServiceStatus = "검색 및 수신 대기 중";
+            if (_host.Settings.Current.EnableMobileTouchpad)
+            {
+                try
+                {
+                    await _host.MobileTouchpad.StartAsync().ConfigureAwait(true);
+                    RefreshMobileQr();
+                }
+                catch (Exception mobileException)
+                {
+                    await _host.Log.ErrorAsync("Mobile Touchpad service failed to start", mobileException).ConfigureAwait(true);
+                    MessageBox.Show(
+                        $"PC 연결 기능은 정상적으로 시작했지만 Mobile Touchpad 서버를 열지 못했습니다.\n\n{mobileException.Message}",
+                        "CrowLink Mobile Touchpad",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
         }
         catch (Exception exception)
         {
@@ -592,6 +656,8 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task OpenSettingsAsync()
     {
+        var mobileWasRunning = _host.MobileTouchpad.IsRunning;
+        var previousMobilePort = _host.Settings.Current.MobileTouchpadPort;
         var viewModel = new SettingsViewModel(_host.Settings.Current);
         var dialog = new SettingsWindow(viewModel) { Owner = Application.Current.MainWindow };
         if (dialog.ShowDialog() != true)
@@ -604,6 +670,25 @@ public sealed class MainViewModel : ObservableObject
             viewModel.Apply();
             await _host.Settings.SaveAsync().ConfigureAwait(true);
             _host.Theme.Apply(_host.Settings.Current.Theme);
+            if (_host.Settings.Current.EnableMobileTouchpad)
+            {
+                if (mobileWasRunning && previousMobilePort != _host.Settings.Current.MobileTouchpadPort)
+                {
+                    await _host.MobileTouchpad.StopAsync().ConfigureAwait(true);
+                    mobileWasRunning = false;
+                }
+
+                if (!mobileWasRunning)
+                {
+                    await _host.MobileTouchpad.StartAsync().ConfigureAwait(true);
+                }
+            }
+            else if (mobileWasRunning)
+            {
+                await _host.MobileTouchpad.StopAsync().ConfigureAwait(true);
+            }
+
+            RefreshMobileQr();
             OnPropertyChanged(nameof(DeviceName));
             OnPropertyChanged(nameof(DropZoneBackground));
             OnPropertyChanged(nameof(AutomationSummary));
@@ -683,6 +768,123 @@ public sealed class MainViewModel : ObservableObject
                 MessageBoxResult.No);
             return result == MessageBoxResult.Yes;
         }).Task;
+    }
+
+    private Task<bool> RequestMobilePairingApprovalAsync(MobilePairingRequest request) =>
+        Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            var result = MessageBox.Show(
+                $"{request.DeviceName}에서 이 PC의 마우스 제어를 요청했습니다.\n\n주소: {request.Address}\n장치 유형: Mobile Browser\n\n휴대폰 화면을 무선 터치패드로 사용하도록 이번 세션을 허용하시겠습니까?",
+                "CrowLink Mobile Touchpad 연결 요청",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            return result == MessageBoxResult.Yes;
+        }).Task;
+
+    private async Task ToggleMobileServerAsync()
+    {
+        try
+        {
+            if (_host.MobileTouchpad.IsRunning)
+            {
+                await _host.MobileTouchpad.StopAsync().ConfigureAwait(true);
+                _host.Settings.Current.EnableMobileTouchpad = false;
+            }
+            else
+            {
+                await _host.MobileTouchpad.StartAsync().ConfigureAwait(true);
+                _host.Settings.Current.EnableMobileTouchpad = true;
+            }
+
+            await _host.Settings.SaveAsync().ConfigureAwait(true);
+            RefreshMobileQr();
+        }
+        catch (Exception exception)
+        {
+            await _host.Log.ErrorAsync("Mobile Touchpad server operation failed", exception).ConfigureAwait(true);
+            MessageBox.Show(exception.Message, "CrowLink Mobile Touchpad", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task DisconnectMobileAsync()
+    {
+        try
+        {
+            await _host.MobileTouchpad.StopAsync().ConfigureAwait(true);
+            _host.Settings.Current.EnableMobileTouchpad = false;
+            await _host.Settings.SaveAsync().ConfigureAwait(true);
+            RefreshMobileQr();
+        }
+        catch (Exception exception)
+        {
+            await _host.Log.ErrorAsync("Mobile Touchpad disconnect failed", exception).ConfigureAwait(true);
+        }
+    }
+
+    private void RefreshMobileCode()
+    {
+        _host.MobileTouchpad.RefreshPairingCode();
+        RefreshMobileQr();
+    }
+
+    private void CopyMobileUrl()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(MobileUrl);
+        }
+        catch (Exception exception)
+        {
+            _ = _host.Log.WarningAsync($"Mobile URL clipboard copy failed: {exception.Message}");
+        }
+    }
+
+    private void RefreshMobileQr()
+    {
+        try
+        {
+            _mobileQrImage = _host.MobileTouchpad.IsRunning
+                ? MobileQrCode.CreateBitmap(_host.MobileTouchpad.MobileUrl, 4)
+                : null;
+        }
+        catch (Exception exception)
+        {
+            _mobileQrImage = null;
+            _ = _host.Log.WarningAsync($"Mobile QR generation failed: {exception.Message}");
+        }
+
+        RaiseMobileProperties();
+    }
+
+    private void OnMobileTouchpadStateChanged(object? sender, EventArgs e) => Dispatch(() =>
+    {
+        RaiseMobileProperties();
+        DisconnectMobileCommand.RaiseCanExecuteChanged();
+        RefreshMobileCodeCommand.RaiseCanExecuteChanged();
+        CopyMobileUrlCommand.RaiseCanExecuteChanged();
+    });
+
+    private void OnMobileTouchpadAutoStopped(object? sender, EventArgs e)
+    {
+        _host.Settings.Current.EnableMobileTouchpad = false;
+        _ = _host.Settings.SaveAsync();
+        Dispatch(RefreshMobileQr);
+    }
+
+    private void RaiseMobileProperties()
+    {
+        OnPropertyChanged(nameof(MobileStatus));
+        OnPropertyChanged(nameof(MobileUrl));
+        OnPropertyChanged(nameof(MobilePairingCode));
+        OnPropertyChanged(nameof(MobileDeviceText));
+        OnPropertyChanged(nameof(MobileStatistics));
+        OnPropertyChanged(nameof(MobileServerButtonText));
+        OnPropertyChanged(nameof(MobileStopButtonText));
+        OnPropertyChanged(nameof(IsMobileSessionActive));
+        OnPropertyChanged(nameof(MobileHeaderText));
+        OnPropertyChanged(nameof(MobileStateBrush));
+        OnPropertyChanged(nameof(MobileQrImage));
     }
 
     private Task<bool> OnClipboardContentReceivedAsync(ClipboardContentReceivedEventArgs content) =>

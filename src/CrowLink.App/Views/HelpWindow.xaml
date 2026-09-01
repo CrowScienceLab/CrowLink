@@ -1,7 +1,7 @@
 <Window x:Class="CrowLink.Views.HelpWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="CrowLink 1.0 도움말" Width="650" Height="700" MinWidth="580" MinHeight="560"
+        Title="CrowLink 1.5 도움말" Width="650" Height="700" MinWidth="580" MinHeight="560"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{DynamicResource PageBrush}" Foreground="{DynamicResource InkBrush}">
     <Window.Resources>
@@ -60,6 +60,14 @@
 
                 <Border Style="{StaticResource HelpCardStyle}">
                     <StackPanel>
+                        <TextBlock Style="{StaticResource HelpTitleStyle}" Text="5. MOBILE · 휴대폰 무선 터치패드" />
+                        <TextBlock Style="{StaticResource HelpTextStyle}"
+                                   Text="PC와 휴대폰을 같은 Wi-Fi에 연결하고 Mobile 메뉴에서 서버를 시작합니다. QR을 스캔하고 6자리 코드를 입력한 뒤 PC에서 요청을 허용하세요. 연결되면 인증창이 닫히고 브라우저 전체화면으로 전환됩니다. 터치패드는 상대 이동·탭·두 손가락 스크롤을 지원하며 감도와 가속을 조절할 수 있습니다. 펜 모드는 선택한 PC 모니터와 휴대폰 입력 영역을 절대좌표로 매칭하므로 가로 방향 사용을 권장합니다. 휴대폰에서 중지하거나 연결이 끊어지면 PC 서버도 자동으로 중지됩니다." />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource HelpCardStyle}">
+                    <StackPanel>
                         <TextBlock Style="{StaticResource HelpTitleStyle}" Text="2. SHARE · 파일과 클립보드 공유" />
                         <TextBlock Style="{StaticResource HelpTextStyle}"
                                    Text="연결된 PC를 선택한 다음 파일이나 폴더를 전송 영역에 놓으면 먼저 보낼 목록에 추가됩니다. 목록의 × 버튼으로 잘못 고른 항목을 제거하고 ‘전송 시작’을 누르세요. 진행 중인 전송은 ‘취소’할 수 있으며, 받은 파일은 설정된 수신 폴더에 저장됩니다. 텍스트 또는 이미지 클립보드도 버튼으로 전송할 수 있고 전송 기록은 Activity에 남습니다." />
@@ -86,7 +94,7 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource HelpTitleStyle}" Text="안전 및 자동 승인" />
                         <TextBlock Style="{StaticResource HelpTextStyle}"
-                                   Text="기본값은 Connect·Share·Control·Explorer 요청을 매번 확인하는 방식입니다. 설정에서 기능별 자동 승인을 켤 수 있지만, 신뢰할 수 있는 사설 네트워크에서만 사용하세요. 기본 포트는 TCP 45100, UDP 45101입니다." />
+                                   Text="기본값은 Connect·Share·Control·Explorer 요청을 매번 확인하는 방식입니다. Mobile 입력은 6자리 임시 코드와 PC의 매회 승인을 모두 통과해야 합니다. 신뢰할 수 있는 사설 네트워크에서만 사용하세요. 기본 포트는 TCP 45100, UDP 45101, Mobile 45102입니다." />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -98,7 +106,10 @@
                 <TextBlock Margin="0,2,0,0" FontSize="9" Foreground="{DynamicResource SoftTextBrush}"
                            Text="누구나 자유롭게 사용할 수 있는 무료 유틸리티입니다." />
             </StackPanel>
-            <Button HorizontalAlignment="Right" Padding="20,8" Click="CloseButton_Click" Content="닫기" />
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="UpdateButton" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Click="UpdateButton_Click" Content="업데이트 확인 · 다운로드" />
+                <Button Padding="20,8" Click="CloseButton_Click" Content="닫기" />
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

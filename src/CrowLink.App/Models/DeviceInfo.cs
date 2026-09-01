@@ -11,7 +11,7 @@ public sealed class DeviceInfo : ObservableObject
     private DateTimeOffset _lastSeen;
     private ConnectionState _state;
 
-    public DeviceInfo(Guid id, string name, IPAddress address, int tcpPort, DateTimeOffset lastSeen)
+    public DeviceInfo(Guid id, string name, IPAddress address, int tcpPort, DateTimeOffset lastSeen, DeviceType type = DeviceType.Pc)
     {
         Id = id;
         _name = name;
@@ -19,9 +19,11 @@ public sealed class DeviceInfo : ObservableObject
         _tcpPort = tcpPort;
         _lastSeen = lastSeen;
         _state = ConnectionState.Available;
+        Type = type;
     }
 
     public Guid Id { get; }
+    public DeviceType Type { get; }
 
     public string Name
     {

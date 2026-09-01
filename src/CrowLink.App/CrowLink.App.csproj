@@ -9,14 +9,15 @@
     <RootNamespace>CrowLink</RootNamespace>
     <AssemblyName>CrowLink</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0</InformationalVersion>
+    <Version>1.5.0</Version>
+    <AssemblyVersion>1.5.0.0</AssemblyVersion>
+    <FileVersion>1.5.0.0</FileVersion>
+    <InformationalVersion>1.5</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>CrowScienceLab</Authors>
     <Company>CrowScienceLab</Company>
     <Copyright>© 2026 CrowScienceLab</Copyright>
-    <Description>PC 연결, 파일 공유, 마우스·키보드 제어를 위한 무료 Windows 유틸리티</Description>
+    <Description>PC 연결, 파일 공유, 마우스·키보드 제어 및 모바일 터치패드를 위한 무료 Windows 유틸리티</Description>
     <SatelliteResourceLanguages>ko;en</SatelliteResourceLanguages>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;artifacts\**</DefaultItemExcludes>
   </PropertyGroup>

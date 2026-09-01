@@ -17,6 +17,12 @@ public sealed class AppSettings
     public bool AutoApproveShare { get; set; }
     public bool AutoApproveControl { get; set; }
     public bool AutoApproveExplorer { get; set; }
+    public bool EnableMobileTouchpad { get; set; }
+    public int MobileTouchpadPort { get; set; } = 45102;
+    public double MobileSensitivity { get; set; } = 1.6;
+    public double MobileScrollSpeed { get; set; } = 1.0;
+    public bool MobilePointerAcceleration { get; set; } = true;
+    public bool MobileLocalNetworkOnly { get; set; } = true;
     public HashSet<Guid> TrustedDevices { get; set; } = [];
     public double WindowWidth { get; set; } = 760;
     public double WindowHeight { get; set; } = 560;

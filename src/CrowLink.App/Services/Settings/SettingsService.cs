@@ -89,6 +89,18 @@ public sealed class SettingsService
         settings.DeviceName = string.IsNullOrWhiteSpace(settings.DeviceName) ? Environment.MachineName : settings.DeviceName.Trim();
         settings.TcpPort = ValidatePort(settings.TcpPort, 45100);
         settings.DiscoveryPort = ValidatePort(settings.DiscoveryPort, 45101);
+        settings.MobileTouchpadPort = ValidatePort(settings.MobileTouchpadPort, 45102);
+        if (settings.MobileTouchpadPort == settings.TcpPort || settings.MobileTouchpadPort == settings.DiscoveryPort)
+        {
+            settings.MobileTouchpadPort = 45102;
+        }
+
+        settings.MobileSensitivity = double.IsFinite(settings.MobileSensitivity)
+            ? Math.Clamp(settings.MobileSensitivity, 0.5d, 5d)
+            : 1.6d;
+        settings.MobileScrollSpeed = double.IsFinite(settings.MobileScrollSpeed)
+            ? Math.Clamp(settings.MobileScrollSpeed, 0.5d, 3d)
+            : 1d;
         settings.ChunkSizeBytes = Math.Clamp(settings.ChunkSizeBytes, 64 * 1024, 4 * 1024 * 1024);
         if (settings.ColorSchemeVersion < CurrentColorSchemeVersion)
         {

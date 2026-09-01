@@ -15,6 +15,7 @@ internal static class MouseInputInjector
     private const uint MiddleDown = 0x0020;
     private const uint MiddleUp = 0x0040;
     private const uint Wheel = 0x0800;
+    private const uint HorizontalWheel = 0x1000;
     private const uint Absolute = 0x8000;
     private const uint VirtualDesk = 0x4000;
     private const uint KeyExtended = 0x0001;
@@ -31,6 +32,16 @@ internal static class MouseInputInjector
             Dy = (int)Math.Round(Math.Clamp(y, 0d, 1d) * 65535d),
             Flags = Move | Absolute | VirtualDesk,
         });
+    }
+
+    public static void MoveBy(double deltaX, double deltaY)
+    {
+        var dx = (int)Math.Clamp(Math.Round(deltaX), int.MinValue, int.MaxValue);
+        var dy = (int)Math.Clamp(Math.Round(deltaY), int.MinValue, int.MaxValue);
+        if (dx != 0 || dy != 0)
+        {
+            Send(new MouseInput { Dx = dx, Dy = dy, Flags = Move });
+        }
     }
 
     public static void Button(string button, bool isDown)
@@ -52,6 +63,12 @@ internal static class MouseInputInjector
     {
         MouseData = unchecked((uint)delta),
         Flags = Wheel,
+    });
+
+    public static void HorizontalWheelBy(int delta) => Send(new MouseInput
+    {
+        MouseData = unchecked((uint)delta),
+        Flags = HorizontalWheel,
     });
 
     public static void Keyboard(ushort virtualKey, ushort scanCode, bool isDown, bool isExtended)

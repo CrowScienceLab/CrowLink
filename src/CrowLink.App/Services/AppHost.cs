@@ -8,6 +8,7 @@ using CrowLink.Services.Transfer;
 using CrowLink.Services.Theming;
 using CrowLink.Services.RemoteMouse;
 using CrowLink.Services.Explorer;
+using CrowLink.Services.Mobile;
 
 namespace CrowLink.Services;
 
@@ -23,6 +24,7 @@ public sealed class AppHost : IAsyncDisposable
         ClipboardSharingService clipboard,
         RemoteMouseService remoteMouse,
         ExplorerBridgeService explorer,
+        MobileTouchpadService mobileTouchpad,
         ThemeService theme)
     {
         Settings = settings;
@@ -34,6 +36,7 @@ public sealed class AppHost : IAsyncDisposable
         Clipboard = clipboard;
         RemoteMouse = remoteMouse;
         Explorer = explorer;
+        MobileTouchpad = mobileTouchpad;
         Theme = theme;
     }
 
@@ -46,6 +49,7 @@ public sealed class AppHost : IAsyncDisposable
     public ClipboardSharingService Clipboard { get; }
     public RemoteMouseService RemoteMouse { get; }
     public ExplorerBridgeService Explorer { get; }
+    public MobileTouchpadService MobileTouchpad { get; }
     public ThemeService Theme { get; }
 
     public static async Task<AppHost> CreateAsync(CancellationToken cancellationToken = default, string? settingsPath = null)
@@ -61,12 +65,14 @@ public sealed class AppHost : IAsyncDisposable
         var clipboard = new ClipboardSharingService(connections, log);
         var remoteMouse = new RemoteMouseService(connections, log);
         var explorer = new ExplorerBridgeService(connections, transfers, log, appSettings);
+        var mobileTouchpad = new MobileTouchpadService(appSettings, log);
         var theme = new ThemeService();
-        return new AppHost(settings, log, discovery, pairing, connections, transfers, clipboard, remoteMouse, explorer, theme);
+        return new AppHost(settings, log, discovery, pairing, connections, transfers, clipboard, remoteMouse, explorer, mobileTouchpad, theme);
     }
 
     public async ValueTask DisposeAsync()
     {
+        await MobileTouchpad.DisposeAsync().ConfigureAwait(false);
         await Explorer.DisposeAsync().ConfigureAwait(false);
         await Clipboard.DisposeAsync().ConfigureAwait(false);
         await RemoteMouse.DisposeAsync().ConfigureAwait(false);

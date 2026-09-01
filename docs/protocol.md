@@ -50,3 +50,7 @@
 ## 호환성
 
 현재 protocol version은 `5`이며 다른 버전의 HELLO와 discovery packet은 받지 않습니다. TLS 추가 시 이 애플리케이션 프레임은 그대로 `SslStream` 위에서 동작합니다.
+
+## Mobile Touchpad WebSocket
+
+Mobile Touchpad는 PC 간 protocol 5 프레임을 변경하지 않고 TCP 45102의 HTTP/WebSocket으로 분리합니다. `/mobile`은 내장 HTML을 제공하고 `/ws`가 입력 세션을 처리합니다. 첫 메시지는 `hello(code, name)`이며 PC 승인 후 `paired(session)`을 반환합니다. 이후 `move(dx,dy)`, `click(button)`, `button(button,down)`, `scroll(delta,horizontal)`, `disconnect` 메시지마다 발급된 session id가 필요합니다. 최대 WebSocket payload는 16KiB이며 인증 전 입력, 세션 불일치, 비정상 수치와 허용 빈도를 넘는 입력은 무시합니다. 상세 규약은 `mobile-touchpad.md`에 있습니다.

@@ -3,6 +3,8 @@ using CrowLink.ViewModels;
 using CrowLink.Models;
 using CrowLink.Services.Explorer;
 using CrowLink.Services.Theming;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 
 namespace CrowLink.Views;
 
@@ -14,13 +16,16 @@ public partial class MainWindow : Window
     private Point _monitorDragPoint;
     private string? _monitorDragGroup;
     private FrameworkElement? _monitorDragElement;
+    private HwndSource? _windowSource;
+    private const int MobileEmergencyHotkeyId = 0x4352;
 
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
-        SourceInitialized += (_, _) => WindowAppearance.ApplyFrame(this, _viewModel.IsSkyTheme);
+        SourceInitialized += OnSourceInitialized;
+        Closed += OnClosed;
     }
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -36,6 +41,39 @@ public partial class MainWindow : Window
     }
 
     private void ToggleMaximized() => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        WindowAppearance.ApplyFrame(this, _viewModel.IsSkyTheme);
+        var handle = new WindowInteropHelper(this).Handle;
+        _windowSource = HwndSource.FromHwnd(handle);
+        _windowSource?.AddHook(WindowMessageHook);
+        NativeMethods.RegisterHotKey(handle, MobileEmergencyHotkeyId, 0x0001 | 0x0002, 0x1B);
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        NativeMethods.UnregisterHotKey(handle, MobileEmergencyHotkeyId);
+        _windowSource?.RemoveHook(WindowMessageHook);
+        _windowSource = null;
+    }
+
+    private nint WindowMessageHook(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    {
+        const int hotkeyMessage = 0x0312;
+        if (message == hotkeyMessage && wParam == MobileEmergencyHotkeyId)
+        {
+            if (_viewModel.DisconnectMobileCommand.CanExecute(null))
+            {
+                _viewModel.DisconnectMobileCommand.Execute(null);
+            }
+
+            handled = true;
+        }
+
+        return 0;
+    }
 
     private void DropZone_DragEnter(object sender, DragEventArgs e)
     {
@@ -159,5 +197,16 @@ public partial class MainWindow : Window
         }
 
         await _viewModel.SaveMonitorTopologyAsync().ConfigureAwait(true);
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool RegisterHotKey(nint windowHandle, int id, uint modifiers, uint virtualKey);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool UnregisterHotKey(nint windowHandle, int id);
     }
 }

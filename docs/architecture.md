@@ -1,4 +1,4 @@
-# CrowLink 1.0 아키텍처
+# CrowLink 1.5 아키텍처
 
 ## 전체 구조
 
@@ -11,6 +11,7 @@ WPF 화면은 `ViewModels`에만 바인딩되고, 네트워크·전송·설정 �
 - `Clipboard`: 명시적 텍스트/PNG 송신과 수신 승인 요청
 - `RemoteMouse`: 모니터·DPI 정보 교환, 별도 입력 승인, 저수준 키보드·마우스 추적과 `SendInput` 주입
 - `Explorer`: 원격 패키지 승인·상태 관리, WPF OLE drop target 입력, 로컬 `CF_HDROP` drag source 출력
+- `Mobile`: 로컬 HTTP/WebSocket 서버, 모바일 세션·승인, 웹 제스처 클라이언트, QR 생성과 상대좌표 입력 변환
 - `Theming`: Crow Black/Bright Sky Blue 리소스 팔레트의 런타임 전환
 - `Settings`: `%LOCALAPPDATA%\CrowLink\settings.json`의 원자적 JSON 저장
 - `Logging`: `%LOCALAPPDATA%\CrowLink\logs`의 5MB 제한 로그와 최대 4개 보관본
@@ -29,7 +30,7 @@ Explorer Bridge는 `EXPLORER_DRAG_OFFER` 승인 후 각 `FILE_METADATA`에 packa
 
 ## 보안 상태
 
-1.0은 영구 랜덤 device id, 승인 이력, 입력 크기 제한, 프로토콜 버전 검사, canonical path 검사, reparse point 제외를 구현합니다. 기본 정책은 연결·클립보드·원격 입력·Explorer 패키지를 매번 확인하는 것입니다. 사용자가 설정에서 기능별 자동 승인을 명시적으로 켜면 해당 확인 단계만 생략합니다. 자동 승인 여부와 무관하게 파일·입력 메시지는 연결 성립 전에는 처리되지 않으며, 원격 입력은 승인된 peer와 session id가 일치할 때만 적용합니다.
+1.5는 영구 랜덤 device id, 승인 이력, 입력 크기 제한, 프로토콜 버전 검사, canonical path 검사, reparse point 제외를 구현합니다. 기본 정책은 연결·클립보드·원격 입력·Explorer 패키지를 매번 확인하는 것입니다. 사용자가 설정에서 기능별 자동 승인을 명시적으로 켜면 해당 확인 단계만 생략합니다. 자동 승인 여부와 무관하게 파일·입력 메시지는 연결 성립 전에는 처리되지 않으며, 원격 입력은 승인된 peer와 session id가 일치할 때만 적용합니다.
 
 저수준 키보드·마우스 훅은 제어 요청이 수락된 동안에만 설치되며 실제 입력은 포인터가 원격 화면에 들어간 동안만 차단합니다. 주입된 이벤트는 다시 송신하지 않도록 제외하고, 버튼·휠·정규화 좌표와 키다운·키업을 TCP 순서대로 보냅니다. 원격 화면에서 나올 때 `KEYBOARD_RESET`으로 남은 수정 키를 해제합니다. `Ctrl+Alt+Esc`는 로컬에서 세션을 중지하는 예약 단축키이고 `Ctrl+Alt+Delete`는 Windows 보안 제한으로 차단합니다. 일반 권한으로 실행한 CrowLink는 UIPI 제한 때문에 관리자 권한 창을 제어할 수 없습니다.
 
@@ -38,6 +39,10 @@ Explorer Bridge는 `EXPLORER_DRAG_OFFER` 승인 후 각 `FILE_METADATA`에 packa
 Control의 Monitor topology는 이 정보를 Windows 디스플레이 설정과 유사한 사각형 묶음으로 투영합니다. 각 PC 내부의 실제 모니터 상대 좌표는 유지하고 PC 묶음만 드래그할 수 있습니다. 배치 위치는 장치 ID별 정규화 좌표로 저장되며, 원격 PC가 로컬 PC의 왼쪽/오른쪽 중 어디에 놓였는지에 따라 마우스 전환 경계를 자동 선택합니다.
 
 현재 전송은 **암호화되지 않은 LAN TCP**입니다. TLS를 끄고 문제를 우회한 것이 아니라 전송 계층과 메시지 계층을 분리해 둔 1차 구현입니다. 다음 보완에서는 `TcpClient.GetStream()`을 인증된 `SslStream`으로 교체하고, 최초 승인 화면에서 인증서 공개키 지문을 장치 ID에 고정해야 합니다. 이 작업 전에는 신뢰할 수 없는 공용 LAN에서 사용하지 않아야 합니다.
+
+Mobile Touchpad는 PC 프로토콜 5와 별개의 TCP 45102 HTTP/WebSocket endpoint입니다. `TcpListener`를 직접 사용하므로 URL ACL이나 관리자 권한이 필요하지 않습니다. QR에는 영구 자격 증명을 넣지 않고 로컬 URL만 담으며, 브라우저가 6자리 임시 코드를 제출한 뒤 PC 사용자가 매번 승인해야 임의 session id가 발급됩니다. 승인 후 코드는 교체되고, 모든 입력 메시지는 session id가 일치해야 합니다. 사설 주소만 허용하는 정책이 기본이며 다섯 번의 잘못된 코드 시도 후 코드가 자동 교체됩니다.
+
+브라우저는 `requestAnimationFrame`에서 이동·스크롤 delta를 병합해 약 60Hz로 전송합니다. PC는 초당 180개를 넘는 이벤트를 버리고, 감도·가속을 적용한 상대 이동을 기존 `MouseInputInjector.SendInput`에 전달합니다. 연결 종료와 예외 처리 경로는 눌린 좌·우 버튼을 모두 해제합니다. Mobile HTTP/WebSocket은 아직 TLS가 아니므로 신뢰할 수 있는 사설 LAN에서만 사용해야 합니다.
 
 ## 향후 확장
 
