@@ -1,10 +1,18 @@
-# CrowLink installer
+# CrowLink 1.5 Windows installer
 
-CrowLink 1.5의 설치 패키지는 Windows에 기본 포함된 IExpress를 사용해 생성합니다.
+정식 설치 파일은 Unicode 설치 마법사를 제공하는 Inno Setup 6으로 생성합니다.
 
-1. `dotnet publish`로 self-contained 단일 실행 파일을 만듭니다.
-2. `artifacts/installer-stage`에 실행 파일, 설명서, 라이선스와 설치/제거 스크립트를 배치합니다.
-3. 저장소 루트에서 `iexpress.exe /N /Q installer\CrowLink-1.5.sed`를 실행합니다.
+```powershell
+dotnet publish .\src\CrowLink.App\CrowLink.App.csproj -c Release -r win-x64 --self-contained true --no-restore `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+  -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=false `
+  -p:DebugType=None -p:DebugSymbols=false -o .\artifacts\publish
 
-설치 범위는 현재 사용자이며 관리자 권한을 요구하지 않습니다. 설치 위치는
-`%LOCALAPPDATA%\Programs\CrowLink`입니다.
+& '.\.tools\Inno Setup 6\ISCC.exe' '.\installer\CrowLink-1.5.iss'
+```
+
+설치 프로그램은 기본적으로 관리자 승인을 받아
+`C:\Program Files\CrowScienceLab\CrowLink`에 설치합니다. 설치 마법사에서 다른 폴더를 선택할 수 있고,
+시작 메뉴 바로가기와 선택 가능한 바탕 화면 바로가기, Windows 설치된 앱의 정상 제거 항목을 만듭니다.
+
+한국어와 영어 메시지 파일을 명시적으로 포함하며 CMD 또는 시스템 코드 페이지에 의존하지 않습니다.

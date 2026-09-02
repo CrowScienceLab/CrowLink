@@ -67,7 +67,7 @@ dotnet restore .\src\CrowLink.App\CrowLink.App.csproj -r win-x64 --source https:
 dotnet publish .\src\CrowLink.App\CrowLink.App.csproj -c Release -r win-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:PublishReadyToRun=false -p:DebugType=None -p:DebugSymbols=false -p:PublishDir=.\artifacts\CrowLink-1.5\
 ```
 
-프로젝트는 한국어·영어 위성 리소스만 포함하도록 제한합니다. 최종 배포물은 설명서와 제거 기능을 포함하는 `artifacts\CrowLink-1.5-Setup-win-x64.exe`와 휴대용 `artifacts\CrowLink-1.5-win-x64.zip`입니다. 둘 다 별도 .NET 설치가 필요 없습니다.
+프로젝트는 한국어·영어 위성 리소스만 포함하도록 제한합니다. 최종 배포물은 Unicode 설치 마법사, 설치 위치 선택, 시작 메뉴·바탕 화면 바로가기와 제거 기능을 포함하는 `artifacts\CrowLink-1.5-Setup-win-x64.exe`와 휴대용 `artifacts\CrowLink-1.5-win-x64.zip`입니다. 기본 설치 위치는 `C:\Program Files\CrowScienceLab\CrowLink`이며, 둘 다 별도 .NET 설치가 필요 없습니다.
 
 외부 NuGet 패키지는 사용하지 않습니다. 간단한 자체 검증 스위트는 다음과 같이 실행합니다.
 
