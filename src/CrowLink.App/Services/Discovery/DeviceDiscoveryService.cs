@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using CrowLink.Models;
 using CrowLink.Protocol;
@@ -95,15 +96,31 @@ public sealed class DeviceDiscoveryService : IDeviceDiscoveryService
 
     private async Task BroadcastLoopAsync(CancellationToken cancellationToken)
     {
-        using var sender = new UdpClient(AddressFamily.InterNetwork) { EnableBroadcast = true };
-        var endpoint = new IPEndPoint(IPAddress.Broadcast, _settings.DiscoveryPort);
-        var announcement = new DeviceInfoMessage("CrowLink", ProtocolSerializer.ProtocolVersion, _settings.DeviceId, _settings.DeviceName, _settings.TcpPort);
-        var payload = JsonSerializer.SerializeToUtf8Bytes(announcement);
-
         using var timer = new PeriodicTimer(AnnouncementInterval);
         do
         {
-            await sender.SendAsync(payload, endpoint, cancellationToken).ConfigureAwait(false);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(new DeviceInfoMessage(
+                "CrowLink", ProtocolSerializer.ProtocolVersion, _settings.DeviceId, _settings.DeviceName, _settings.TcpPort));
+            foreach (var adapter in NetworkInterface.GetAllNetworkInterfaces()
+                .Where(item => item.OperationalStatus == OperationalStatus.Up && item.NetworkInterfaceType != NetworkInterfaceType.Loopback))
+            {
+                foreach (var address in adapter.GetIPProperties().UnicastAddresses
+                    .Where(item => item.Address.AddressFamily == AddressFamily.InterNetwork))
+                {
+                    try
+                    {
+                        using var sender = new UdpClient(new IPEndPoint(address.Address, 0)) { EnableBroadcast = true };
+                        var ip = address.Address.GetAddressBytes();
+                        var mask = address.IPv4Mask.GetAddressBytes();
+                        var broadcast = new IPAddress(ip.Select((value, index) => (byte)(value | ~mask[index])).ToArray());
+                        await sender.SendAsync(payload, new IPEndPoint(broadcast, _settings.DiscoveryPort), cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (SocketException exception)
+                    {
+                        await _log.WarningAsync($"Discovery send on {address.Address}: {exception.SocketErrorCode}").ConfigureAwait(false);
+                    }
+                }
+            }
         }
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
     }

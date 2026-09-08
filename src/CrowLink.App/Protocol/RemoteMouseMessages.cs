@@ -1,5 +1,7 @@
 namespace CrowLink.Protocol;
 
+public sealed record MonitorPlacementMessage(double SenderX, double SenderY, double ReceiverX, double ReceiverY);
+
 public sealed record MonitorInfoMessage(
     int VirtualWidth,
     int VirtualHeight,
@@ -20,9 +22,9 @@ public sealed record MonitorDescriptorMessage(
     uint DpiY,
     bool IsPrimary);
 
-public sealed record MouseControlRequestMessage(Guid SessionId, string EntryEdge);
+public sealed record MouseControlRequestMessage(Guid SessionId, string EntryEdge, bool Bidirectional = false);
 
-public sealed record MouseControlResponseMessage(Guid SessionId);
+public sealed record MouseControlResponseMessage(Guid SessionId, bool Bidirectional = false);
 
 public sealed record MouseMoveMessage(Guid SessionId, double X, double Y);
 

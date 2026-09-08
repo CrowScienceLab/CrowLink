@@ -100,6 +100,8 @@ public sealed class ConnectionService : IAsyncDisposable
 
             await _pairing.TrustAsync(hello.DeviceId).ConfigureAwait(false);
 
+            device.UpdateFrom(hello.DeviceName, device.Address, device.TcpPort, DateTimeOffset.UtcNow);
+
             var connection = new PeerConnection(device, client, protocol);
             client = null;
             protocol = null;

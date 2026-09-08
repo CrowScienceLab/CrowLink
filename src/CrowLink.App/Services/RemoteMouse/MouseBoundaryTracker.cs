@@ -42,7 +42,7 @@ public sealed class MouseBoundaryTracker
         X += deltaX / RemoteTravelPixels;
         Y += (double)deltaY / Math.Max(1, remoteHeight);
         Y = Math.Clamp(Y, 0d, 1d);
-        if (X < 0d || X > 1d)
+        if ((_edge == MouseTransitionEdge.Right && X < 0d) || (_edge == MouseTransitionEdge.Left && X > 1d))
         {
             IsRemote = false;
             return true;

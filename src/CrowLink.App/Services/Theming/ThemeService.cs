@@ -7,6 +7,7 @@ public sealed class ThemeService
 {
     public const string CrowTheme = "crow";
     public const string SkyTheme = "sky";
+    public const string PinkTheme = "pink";
 
     private static readonly IReadOnlyDictionary<string, string> CrowPalette = new Dictionary<string, string>
     {
@@ -107,7 +108,7 @@ public sealed class ThemeService
         }
 
         CurrentTheme = Normalize(themeName);
-        var palette = CurrentTheme == SkyTheme ? SkyPalette : CrowPalette;
+        var palette = CurrentTheme == PinkTheme ? CreatePinkPalette() : CurrentTheme == SkyTheme ? SkyPalette : CrowPalette;
         foreach (var entry in palette)
         {
             var color = (Color)ColorConverter.ConvertFromString(entry.Value);
@@ -118,5 +119,23 @@ public sealed class ThemeService
     }
 
     public static string Normalize(string? themeName) =>
+        string.Equals(themeName, PinkTheme, StringComparison.OrdinalIgnoreCase) ? PinkTheme :
         string.Equals(themeName, SkyTheme, StringComparison.OrdinalIgnoreCase) ? SkyTheme : CrowTheme;
+
+    private static IReadOnlyDictionary<string, string> CreatePinkPalette()
+    {
+        var palette = new Dictionary<string, string>(SkyPalette);
+        foreach (var key in palette.Keys.ToArray())
+        {
+            if (key.Contains("Text") || key is "InkBrush" or "MutedBrush" or "SoftTextBrush") palette[key] = "#704555";
+            else if (key.Contains("Border") || key == "LineBrush") palette[key] = "#EEDCE4";
+            else if (key.Contains("Accent")) palette[key] = "#AD426C";
+            else if (key != "WhiteBrush" && key != "SuccessBrush" && key != "DangerBrush") palette[key] = "#FFF9FC";
+        }
+        palette["PageBrush"] = "#FFFAFC";
+        palette["ShellBrush"] = "#FFFCFD";
+        palette["CardBrush"] = palette["SurfaceBrush"] = "#FFFFFF";
+        palette["NavSelectedBrush"] = palette["DropZoneActiveBrush"] = "#FCEAF2";
+        return palette;
+    }
 }

@@ -86,7 +86,8 @@ public sealed class SettingsService
             settings.DeviceId = Guid.NewGuid();
         }
 
-        settings.DeviceName = string.IsNullOrWhiteSpace(settings.DeviceName) ? Environment.MachineName : settings.DeviceName.Trim();
+        settings.DeviceName = settings.UseSystemDeviceName || string.IsNullOrWhiteSpace(settings.DeviceName)
+            ? Environment.MachineName : settings.DeviceName.Trim();
         settings.TcpPort = ValidatePort(settings.TcpPort, 45100);
         settings.DiscoveryPort = ValidatePort(settings.DiscoveryPort, 45101);
         settings.MobileTouchpadPort = ValidatePort(settings.MobileTouchpadPort, 45102);
@@ -102,9 +103,14 @@ public sealed class SettingsService
             ? Math.Clamp(settings.MobileScrollSpeed, 0.5d, 3d)
             : 1d;
         settings.ChunkSizeBytes = Math.Clamp(settings.ChunkSizeBytes, 64 * 1024, 4 * 1024 * 1024);
+        if (settings.WindowLayoutVersion < 1)
+        {
+            if (settings.WindowHeight == 740) settings.WindowHeight = 640;
+            settings.WindowLayoutVersion = 1;
+        }
         if (settings.ColorSchemeVersion < CurrentColorSchemeVersion)
         {
-            settings.Theme = ThemeService.SkyTheme;
+            settings.Theme = ThemeService.CrowTheme;
             settings.ColorSchemeVersion = CurrentColorSchemeVersion;
         }
         else

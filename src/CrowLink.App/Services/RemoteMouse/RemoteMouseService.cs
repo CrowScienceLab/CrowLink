@@ -19,7 +19,10 @@ public sealed class RemoteMouseService : IAsyncDisposable
     private Channel<RemoteInputEvent>? _inputChannel;
     private Task? _inputPump;
     private readonly Dictionary<ushort, InjectedKey> _injectedKeys = [];
+    private readonly HashSet<string> _injectedButtons = [];
     private string _status = "입력 공유 사용 안 함";
+    private long _sentInputs;
+    private long _receivedInputs;
 
     public RemoteMouseService(ConnectionService connections, LogService log)
     {
@@ -33,11 +36,15 @@ public sealed class RemoteMouseService : IAsyncDisposable
 
     public event Func<RemoteMouseControlRequest, Task<bool>>? ControlRequested;
     public event EventHandler? StateChanged;
+    public bool QuickTransferEnabled { get; set; }
+    public event EventHandler? QuickDragStarted;
+    public event EventHandler? QuickDropRequested;
+    public bool IsActivePeer(Guid deviceId) => IsActive && _controlConnection?.Device.Id == deviceId;
     public event EventHandler<RemoteMonitorChangedEventArgs>? MonitorChanged;
 
     public bool IsActive => _sessionId != Guid.Empty || _receivingPeerId != Guid.Empty;
     public bool IsControlling => _tracker is not null;
-    public string Status => _status;
+    public string Status => $"{_status} · 송신 {Interlocked.Read(ref _sentInputs)} / 수신 {Interlocked.Read(ref _receivedInputs)}";
     public MonitorInfoMessage LocalMonitor => _localMonitor;
 
     public bool TryGetRemoteMonitor(Guid deviceId, out MonitorInfoMessage? monitor) =>
@@ -61,7 +68,7 @@ public sealed class RemoteMouseService : IAsyncDisposable
         {
             await connection.SendJsonAsync(
                 MessageType.MouseControlRequest,
-                new MouseControlRequestMessage(_sessionId, edge.ToString()),
+                new MouseControlRequestMessage(_sessionId, edge.ToString(), true),
                 cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -184,6 +191,9 @@ public sealed class RemoteMouseService : IAsyncDisposable
     {
         var request = ProtocolSerializer.Deserialize<MouseControlRequestMessage>(args.Message);
         var edgeValid = Enum.TryParse<MouseTransitionEdge>(request.EntryEdge, true, out var edge);
+        if (_controlConnection?.Device.Id == args.Connection.Device.Id && _tracker is null &&
+            _receivingPeerId == Guid.Empty && _sessionId != Guid.Empty && request.SessionId.CompareTo(_sessionId) < 0)
+            ResetControllerState();
         var approved = request.SessionId != Guid.Empty && edgeValid && !IsActive;
         var handlers = ControlRequested?.GetInvocationList()
             .Cast<Func<RemoteMouseControlRequest, Task<bool>>>()
@@ -213,10 +223,27 @@ public sealed class RemoteMouseService : IAsyncDisposable
         _receivingPeerId = args.Connection.Device.Id;
         _sessionId = request.SessionId;
         _controlConnection = args.Connection;
+        if (request.Bidirectional)
+        {
+            try
+            {
+                var reverseEdge = edge == MouseTransitionEdge.Right ? MouseTransitionEdge.Left : MouseTransitionEdge.Right;
+                var remoteHeight = _monitors.TryGetValue(args.Connection.Device.Id, out var remote) ? remote.VirtualHeight : 1080;
+                StartTracker(reverseEdge, remoteHeight);
+            }
+            catch (Exception exception)
+            {
+                await _log.ErrorAsync("Receiving input tracker could not start", exception).ConfigureAwait(false);
+                await ResetAsync("입력 추적기를 시작하지 못했습니다.").ConfigureAwait(false);
+                await args.Connection.SendJsonAsync(MessageType.MouseControlReject,
+                    new MouseControlResponseMessage(request.SessionId), CancellationToken.None).ConfigureAwait(false);
+                return;
+            }
+        }
         SetStatus($"{args.Connection.Device.Name}에서 키보드·마우스를 공유하는 중");
         await args.Connection.SendJsonAsync(
             MessageType.MouseControlAccept,
-            new MouseControlResponseMessage(request.SessionId),
+            new MouseControlResponseMessage(request.SessionId, request.Bidirectional),
             CancellationToken.None).ConfigureAwait(false);
     }
 
@@ -240,13 +267,14 @@ public sealed class RemoteMouseService : IAsyncDisposable
             : 1080;
         try
         {
+            if (response.Bidirectional) _receivingPeerId = args.Connection.Device.Id;
             StartTracker(requestEdge, remoteHeight);
             SetStatus($"준비됨 · {EntryEdgeText(requestEdge)} 끝으로 마우스를 이동하세요");
         }
         catch (Exception exception)
         {
             _ = _log.ErrorAsync("Global mouse tracker could not start", exception);
-            _ = ResetAsync("전역 마우스 추적기를 시작하지 못했습니다.");
+            _ = StopAsync();
         }
     }
 
@@ -271,6 +299,9 @@ public sealed class RemoteMouseService : IAsyncDisposable
         });
         _inputPump = PumpInputAsync(_inputChannel.Reader);
         _tracker = new GlobalMouseTracker(edge, remoteHeight);
+        _tracker.CanQuickDrag = () => QuickTransferEnabled;
+        _tracker.QuickDragStarted += () => QuickDragStarted?.Invoke(this, EventArgs.Empty);
+        _tracker.QuickDropRequested += () => QuickDropRequested?.Invoke(this, EventArgs.Empty);
         _tracker.Move += (x, y) => QueueInput(new RemoteInputEvent(MessageType.MouseMove, x, y, null, false, 0, 0, 0, false));
         _tracker.Button += (button, isDown) => QueueInput(new RemoteInputEvent(MessageType.MouseButton, 0, 0, button, isDown, 0, 0, 0, false));
         _tracker.Wheel += delta => QueueInput(new RemoteInputEvent(MessageType.MouseWheel, 0, 0, null, false, delta, 0, 0, false));
@@ -328,6 +359,7 @@ public sealed class RemoteMouseService : IAsyncDisposable
                         await connection.SendJsonAsync(input.Type, new KeyboardResetMessage(sessionId), CancellationToken.None).ConfigureAwait(false);
                         break;
                 }
+                if (Interlocked.Increment(ref _sentInputs) == 1) SetStatus("입력 전송 중 · Ctrl+Alt+Esc로 중지");
             }
         }
         catch (Exception exception)
@@ -346,6 +378,7 @@ public sealed class RemoteMouseService : IAsyncDisposable
         }
 
         MouseInputInjector.MoveTo(move.X, move.Y);
+        if (Interlocked.Increment(ref _receivedInputs) == 1) SetStatus("상대 마우스 입력 수신 확인 · Ctrl+Alt+Esc로 중지");
     }
 
     private void HandleMouseButton(PeerMessageEventArgs args)
@@ -354,6 +387,8 @@ public sealed class RemoteMouseService : IAsyncDisposable
         if (IsReceiving(args.Connection, button.SessionId))
         {
             MouseInputInjector.Button(button.Button, button.IsDown);
+            if (button.IsDown) _injectedButtons.Add(button.Button);
+            else _injectedButtons.Remove(button.Button);
         }
     }
 
@@ -436,6 +471,7 @@ public sealed class RemoteMouseService : IAsyncDisposable
     private void SetStatus(string status)
     {
         _status = status;
+        _ = _log.InfoAsync($"Control: {status}; sent={_sentInputs}, received={_receivedInputs}");
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -462,6 +498,12 @@ public sealed class RemoteMouseService : IAsyncDisposable
 
     private void ReleaseInjectedKeys()
     {
+        foreach (var button in _injectedButtons.ToArray())
+        {
+            try { MouseInputInjector.Button(button, false); }
+            catch (Exception exception) { _ = _log.WarningAsync($"Remote button release failed: {exception.Message}"); }
+        }
+        _injectedButtons.Clear();
         foreach (var key in _injectedKeys.Values.Reverse())
         {
             try

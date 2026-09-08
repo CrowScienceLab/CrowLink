@@ -14,6 +14,8 @@ public enum MessageType : byte
     Pong = 21,
     ClipboardText = 30,
     ClipboardImage = 31,
+    ClipboardResult = 32,
+    MonitorPlacement = 39,
     MonitorInfo = 40,
     MouseControlRequest = 41,
     MouseControlAccept = 42,

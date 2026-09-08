@@ -44,15 +44,34 @@ public sealed class MobileTouchpadService : IAsyncDisposable
     private string _sessionMode = "touchpad";
     private int _sessionMonitorIndex;
     private int _autoStopQueued;
+    private long _lastCaptureTick;
+    private readonly DesktopAnnotationService _annotation = new();
+    private MobileWebSocket? _activeSocket;
+    public async Task<bool> SendBrowserCommandAsync(object command)
+    {
+        try
+        {
+            if (_activeSocket is { } socket && HasActiveSession)
+            {
+                await SendAsync(socket, command, CancellationToken.None);
+                return true;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        { await _log.WarningAsync($"Mobile browser input disconnected: {exception.Message}"); }
+        return false;
+    }
 
     public MobileTouchpadService(AppSettings settings, LogService log)
     {
         _settings = settings;
         _log = log;
+        _annotation.WhiteboardChanged += enabled => _ = SendBrowserCommandAsync(new { type = "whiteboard", enabled });
     }
 
     public event Func<MobilePairingRequest, Task<bool>>? PairingRequested;
     public event EventHandler? StateChanged;
+    public event Action<MobileSharedContent>? ContentReceived;
     public event EventHandler? AutoStopped;
 
     public bool IsRunning => _listener is not null;
@@ -356,6 +375,7 @@ public sealed class MobileTouchpadService : IAsyncDisposable
             monitorIndex = _sessionMonitorIndex,
             monitors,
         }, cancellationToken).ConfigureAwait(false);
+        _activeSocket = socket;
         SetStatus($"{deviceName} 연결됨 · Ctrl+Alt+Esc 또는 연결 종료로 해제");
         await _log.InfoAsync($"Mobile connected: {deviceName} ({remote})").ConfigureAwait(false);
 
@@ -363,8 +383,8 @@ public sealed class MobileTouchpadService : IAsyncDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var text = await socket.ReceiveTextAsync(cancellationToken).ConfigureAwait(false);
-                if (text is null || !await ProcessInputAsync(text, session, cancellationToken).ConfigureAwait(false))
+                var text = await socket.ReceiveTextAsync(cancellationToken, MobileContentLimits.MessageBytes).ConfigureAwait(false);
+                if (text is null || !await ProcessInputAsync(text, session, socket, cancellationToken).ConfigureAwait(false))
                 {
                     break;
                 }
@@ -385,6 +405,7 @@ public sealed class MobileTouchpadService : IAsyncDisposable
 
             if (ownsSession)
             {
+                _activeSocket = null;
                 ReleaseButtons();
                 SetStatus("휴대폰 연결 종료 · 서버를 자동으로 중지합니다.");
                 await _log.InfoAsync($"Mobile disconnected: {deviceName}").ConfigureAwait(false);
@@ -396,6 +417,7 @@ public sealed class MobileTouchpadService : IAsyncDisposable
     private async Task<bool> ProcessInputAsync(
         string text,
         MobileSessionSnapshot session,
+        MobileWebSocket socket,
         CancellationToken cancellationToken)
     {
         using var document = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 8 });
@@ -419,6 +441,57 @@ public sealed class MobileTouchpadService : IAsyncDisposable
             return true;
         }
 
+        if (type == "clearInk") { _annotation.Clear(); return true; }
+        if (type == "capture")
+        {
+            if (Environment.TickCount64 - _lastCaptureTick < 1000) return true;
+            _lastCaptureTick = Environment.TickCount64;
+            try
+            {
+            var displays = MouseInputInjector.GetMonitorInfo().Monitors;
+            var jpeg = DesktopScreenCapture.Capture(displays[Math.Clamp(_sessionMonitorIndex, 0, displays.Count - 1)]);
+            var folder = Path.Combine(_settings.ReceiveFolder, "Captures");
+            Directory.CreateDirectory(folder);
+            var filename = $"CrowLink-{DateTime.Now:yyyyMMdd-HHmmss-fff}.jpg";
+            await File.WriteAllBytesAsync(Path.Combine(folder, filename), Convert.FromBase64String(jpeg), cancellationToken);
+            await SendAsync(socket, new { type = "captured", filename }, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                await _log.WarningAsync($"Mobile capture failed: {exception.Message}");
+                await SendAsync(socket, new { type = "toolError", message = "PC 캡처를 저장하지 못했습니다." }, cancellationToken);
+            }
+            return true;
+        }
+
+        if (type == "whiteboard" && TryGetBoolean(root, "enabled", out var whiteboard))
+        {
+            _annotation.SetWhiteboard(_sessionMode == "pen" && whiteboard);
+            return true;
+        }
+        if (type == "shareText" || type == "shareImage")
+        {
+            try
+            {
+                if (type == "shareText" && TryGetString(root, "text", out var sharedText) &&
+                    sharedText.Length <= MobileContentLimits.TextCharacters)
+                    ContentReceived?.Invoke(new(session.SessionId, sharedText, null));
+                else if (type == "shareImage" && TryGetString(root, "png", out var encoded))
+                {
+                    var png = Convert.FromBase64String(encoded);
+                    if (!MobileContentLimits.IsAllowedPng(png)) throw new InvalidDataException("PNG 이미지 크기 또는 형식이 맞지 않습니다.");
+                    ContentReceived?.Invoke(new(session.SessionId, null, png));
+                }
+                else throw new InvalidDataException("텍스트는 100,000자까지 보낼 수 있습니다.");
+                await SendAsync(socket, new { type = "shared", message = "PC 수신함에 전달했습니다." }, cancellationToken);
+            }
+            catch (Exception exception) when (exception is FormatException or InvalidDataException)
+            {
+                await SendAsync(socket, new { type = "toolError", message = exception.Message }, cancellationToken);
+            }
+            return true;
+        }
+
         if (!AllowInputEvent())
         {
             Interlocked.Increment(ref _droppedEvents);
@@ -430,6 +503,13 @@ public sealed class MobileTouchpadService : IAsyncDisposable
         {
             switch (type)
             {
+                case "text" when TryGetString(root, "text", out var typed) && typed.Length <= 2000:
+                    MouseInputInjector.Text(typed);
+                    break;
+                case "key" when TryGetInteger(root, "key", out var key) && key is 8 or 9 or 13 or 27 or 33 or 34 or 35 or 36 or 37 or 38 or 39 or 40:
+                    MouseInputInjector.Keyboard((ushort)key, 0, true, false);
+                    MouseInputInjector.Keyboard((ushort)key, 0, false, false);
+                    break;
                 case "move" when TryGetNumber(root, "dx", out var dx) && TryGetNumber(root, "dy", out var dy):
                     var movement = MobilePointerMath.ScaleMovement(
                         dx,
@@ -437,6 +517,7 @@ public sealed class MobileTouchpadService : IAsyncDisposable
                         _sessionSensitivity,
                         _sessionAcceleration);
                     MouseInputInjector.MoveBy(movement.X, movement.Y);
+                    if (_annotation.IsEnabled) _annotation.Cursor("move");
                     break;
                 case "pen" when TryGetNumber(root, "x", out var x) &&
                                      TryGetNumber(root, "y", out var y) &&
@@ -444,12 +525,14 @@ public sealed class MobileTouchpadService : IAsyncDisposable
                     ApplyPenInput(x, y, phase);
                     break;
                 case "click" when TryGetString(root, "button", out var clickButton):
-                    Click(clickButton);
+                    if (_annotation.IsEnabled) { _annotation.Cursor("down"); _annotation.Cursor("up"); }
+                    else Click(clickButton);
                     break;
                 case "button" when TryGetString(root, "button", out var button) &&
                                    root.TryGetProperty("down", out var downElement) &&
                                    downElement.ValueKind is JsonValueKind.True or JsonValueKind.False:
-                    SetButton(button, downElement.GetBoolean());
+                    if (_annotation.IsEnabled) _annotation.Cursor(downElement.GetBoolean() ? "down" : "up");
+                    else SetButton(button, downElement.GetBoolean());
                     break;
                 case "scroll" when TryGetNumber(root, "delta", out var delta):
                     var wheel = MobilePointerMath.ScaleWheel(delta, _settings.MobileScrollSpeed);
@@ -517,47 +600,19 @@ public sealed class MobileTouchpadService : IAsyncDisposable
             var count = MouseInputInjector.GetMonitorInfo().MonitorCount;
             _sessionMonitorIndex = Math.Clamp(monitorIndex, 0, Math.Max(0, count - 1));
         }
+        var tool = _sessionMode == "pen" ? "draw" : "cursor";
+        if (_sessionMode != "pen" && TryGetString(root, "tool", out var selectedTool) && selectedTool is "laser" or "highlight" or "wand" or "finger") tool = selectedTool;
+        var color = TryGetString(root, "color", out var inkColor) && System.Text.RegularExpressions.Regex.IsMatch(inkColor, "^#[0-9a-fA-F]{6}$") ? inkColor : "#ff3030";
+        var width = TryGetNumber(root, "width", out var inkWidth) ? Math.Clamp(inkWidth, 1, 30) : 4;
+        var monitors = MouseInputInjector.GetMonitorInfo().Monitors;
+        _annotation.Configure(tool, color, width, monitors[Math.Clamp(_sessionMonitorIndex, 0, monitors.Count - 1)]);
     }
 
     private void ApplyPenInput(double x, double y, string phase)
     {
-        if (_sessionMode != "pen")
-        {
-            return;
-        }
-
-        if (phase == "cancel")
-        {
-            SetButton("left", false);
-            return;
-        }
-
-        var monitorInfo = MouseInputInjector.GetMonitorInfo();
-        if (monitorInfo.Monitors.Count == 0)
-        {
-            return;
-        }
-
-        var monitor = monitorInfo.Monitors[Math.Clamp(_sessionMonitorIndex, 0, monitorInfo.Monitors.Count - 1)];
-        var virtualLeft = monitorInfo.Monitors.Min(item => item.X);
-        var virtualTop = monitorInfo.Monitors.Min(item => item.Y);
-        var absoluteX = (monitor.X - virtualLeft + (Math.Clamp(x, 0d, 1d) * monitor.Width)) / monitorInfo.VirtualWidth;
-        var absoluteY = (monitor.Y - virtualTop + (Math.Clamp(y, 0d, 1d) * monitor.Height)) / monitorInfo.VirtualHeight;
-        MouseInputInjector.MoveTo(absoluteX, absoluteY);
-
-        switch (phase)
-        {
-            case "down":
-                SetButton("left", true);
-                break;
-            case "up":
-                SetButton("left", false);
-                break;
-            case "move":
-                break;
-            default:
-                throw new InvalidDataException("Unsupported mobile pen phase.");
-        }
+        if (_sessionMode != "pen") return;
+        if (phase is not ("down" or "move" or "up" or "cancel")) throw new InvalidDataException("Unsupported pen phase.");
+        _annotation.Point(x, y, phase);
     }
 
     private void QueueAutoStop()
@@ -623,6 +678,7 @@ public sealed class MobileTouchpadService : IAsyncDisposable
 
     private void ReleaseButtons()
     {
+        _annotation.Close();
         if (_leftDown)
         {
             _leftDown = false;

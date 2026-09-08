@@ -53,5 +53,5 @@ public sealed class ExplorerPackageItem : ObservableObject
         OnPropertyChanged(nameof(DragHint));
     }
 
-    public string DragHint => CanDragToExplorer ? "잡아서 Explorer 폴더로 드래그" : "전송 상태를 확인하세요";
+    public string DragHint => CanDragToExplorer ? "잡아서 탐색기 폴더로 드래그" : "전송 상태를 확인하세요";
 }

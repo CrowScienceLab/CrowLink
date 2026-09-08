@@ -32,14 +32,15 @@ public sealed class SettingsViewModel : ObservableObject
         _receiveFolder = settings.ReceiveFolder;
         ThemeChoices =
         [
-            new ThemeChoice(ThemeService.CrowTheme, "Black · Crow"),
+            new ThemeChoice(ThemeService.CrowTheme, "Black Crow"),
             new ThemeChoice(ThemeService.SkyTheme, "Bright Sky Blue"),
+            new ThemeChoice(ThemeService.PinkTheme, "White & Light Pink"),
         ];
         _selectedTheme = ThemeChoices.First(choice => choice.Key == ThemeService.Normalize(settings.Theme));
         _autoApproveConnect = settings.AutoApproveConnect;
         _autoApproveShare = settings.AutoApproveShare;
         _autoApproveControl = settings.AutoApproveControl;
-        _autoApproveExplorer = settings.AutoApproveExplorer;
+        _autoApproveExplorer = settings.EnableQuickTransfer;
         _enableMobileTouchpad = settings.EnableMobileTouchpad;
         _mobileTouchpadPort = settings.MobileTouchpadPort.ToString();
         _mobileSensitivity = settings.MobileSensitivity;
@@ -70,6 +71,10 @@ public sealed class SettingsViewModel : ObservableObject
 
     public void Apply()
     {
+        if (!string.Equals(DeviceName.Trim(), _settings.DeviceName, StringComparison.Ordinal))
+        {
+            _settings.UseSystemDeviceName = string.Equals(DeviceName.Trim(), Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+        }
         if (string.IsNullOrWhiteSpace(DeviceName))
         {
             throw new InvalidOperationException("장치 이름을 입력하세요.");
@@ -100,7 +105,7 @@ public sealed class SettingsViewModel : ObservableObject
         _settings.AutoApproveConnect = AutoApproveConnect;
         _settings.AutoApproveShare = AutoApproveShare;
         _settings.AutoApproveControl = AutoApproveControl;
-        _settings.AutoApproveExplorer = AutoApproveExplorer;
+        _settings.EnableQuickTransfer = AutoApproveExplorer;
         _settings.EnableMobileTouchpad = EnableMobileTouchpad;
         _settings.MobileTouchpadPort = mobileTouchpadPort;
         _settings.MobileSensitivity = Math.Clamp(MobileSensitivity, 0.5d, 5d);

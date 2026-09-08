@@ -41,7 +41,7 @@ public static class OleExplorerDragService
             .ToArray();
         if (existing.Length == 0)
         {
-            throw new InvalidOperationException("Explorer로 드래그할 로컬 파일이 없습니다.");
+            throw new InvalidOperationException("탐색기로 드래그할 로컬 파일이 없습니다.");
         }
 
         // WPF DataObject exposes the managed COM IDataObject contract. FileDrop is rendered as

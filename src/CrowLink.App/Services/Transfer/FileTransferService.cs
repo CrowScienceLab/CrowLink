@@ -32,6 +32,7 @@ public sealed class FileTransferService : IAsyncDisposable
     public event EventHandler<TransferItem>? TransferAdded;
     public event EventHandler<TransferItem>? TransferChanged;
     public event EventHandler<IncomingRootCompletedEventArgs>? IncomingRootCompleted;
+    public Func<Guid, FileMetadataMessage, bool>? AcceptExplorerMetadata { get; set; }
 
     public async Task<bool> CancelTransferAsync(Guid batchId)
     {
@@ -227,6 +228,8 @@ public sealed class FileTransferService : IAsyncDisposable
 
     private async Task HandleMetadataAsync(Guid deviceId, FileMetadataMessage metadata, CancellationToken cancellationToken)
     {
+        if (metadata.ExplorerPackageId != Guid.Empty && AcceptExplorerMetadata?.Invoke(deviceId, metadata) != true)
+            throw new InvalidDataException("Unapproved quick-transfer file metadata.");
         if (metadata.BatchId == Guid.Empty || metadata.TransferId == Guid.Empty || metadata.Size < 0)
         {
             throw new InvalidDataException("Invalid file metadata.");
@@ -326,6 +329,7 @@ public sealed class FileTransferService : IAsyncDisposable
         {
             if (_incomingBatches.TryRemove(message.BatchId, out var batch))
             {
+                batch.Item.ReceivedPath = batch.RootDestination;
                 batch.Item.Status = TransferStatus.Completed;
                 TransferChanged?.Invoke(this, batch.Item);
                 await _log.InfoAsync($"Incoming transfer completed: {message.BatchId}").ConfigureAwait(false);

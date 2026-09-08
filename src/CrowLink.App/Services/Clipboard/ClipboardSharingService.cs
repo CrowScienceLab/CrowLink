@@ -20,6 +20,7 @@ public sealed class ClipboardSharingService : IAsyncDisposable
     }
 
     public event Func<ClipboardContentReceivedEventArgs, Task<bool>>? ContentReceived;
+    public event EventHandler<ClipboardResultMessage>? ResultReceived;
 
     public async Task SendTextAsync(PeerConnection connection, string text, CancellationToken cancellationToken = default)
     {
@@ -49,6 +50,11 @@ public sealed class ClipboardSharingService : IAsyncDisposable
 
     private async Task OnMessageReceivedAsync(PeerMessageEventArgs args)
     {
+        if (args.Message.Type == MessageType.ClipboardResult)
+        {
+            ResultReceived?.Invoke(this, ProtocolSerializer.Deserialize<ClipboardResultMessage>(args.Message));
+            return;
+        }
         ClipboardContentReceivedEventArgs content;
         switch (args.Message.Type)
         {
@@ -95,6 +101,8 @@ public sealed class ClipboardSharingService : IAsyncDisposable
         await _log.InfoAsync(accepted
             ? $"{content.Kind} clipboard accepted"
             : $"{content.Kind} clipboard rejected").ConfigureAwait(false);
+        await args.Connection.SendJsonAsync(MessageType.ClipboardResult,
+            new ClipboardResultMessage(content.Kind.ToString(), accepted), CancellationToken.None).ConfigureAwait(false);
     }
 
     private static void ValidatePng(byte[] pngBytes)
@@ -113,3 +121,5 @@ public sealed class ClipboardSharingService : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 }
+
+public sealed record ClipboardResultMessage(string Kind, bool Accepted);

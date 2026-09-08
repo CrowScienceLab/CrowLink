@@ -9,10 +9,11 @@
     <RootNamespace>CrowLink</RootNamespace>
     <AssemblyName>CrowLink</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.5.0</Version>
-    <AssemblyVersion>1.5.0.0</AssemblyVersion>
-    <FileVersion>1.5.0.0</FileVersion>
-    <InformationalVersion>1.5</InformationalVersion>
+    <ApplicationIcon>Assets\CrowLink.ico</ApplicationIcon>
+    <Version>1.8.1</Version>
+    <AssemblyVersion>1.8.1.0</AssemblyVersion>
+    <FileVersion>1.8.1.0</FileVersion>
+    <InformationalVersion>1.8.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>CrowScienceLab</Authors>
     <Company>CrowScienceLab</Company>
@@ -21,4 +22,5 @@
     <SatelliteResourceLanguages>ko;en</SatelliteResourceLanguages>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;artifacts\**</DefaultItemExcludes>
   </PropertyGroup>
+  <ItemGroup><Resource Include="Assets\CrowLink.ico" /><Resource Include="Assets\CrowLink.png" /></ItemGroup>
 </Project>

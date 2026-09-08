@@ -28,6 +28,10 @@ using CrowLink.Views;
 var tests = new (string Name, Func<Task> Run)[]
 {
     ("Protocol framing round trip", ProtocolRoundTripAsync),
+    ("TCP clipboard and control regression", ConnectionRegression.RunAsync),
+    ("System name and explicit alias", ConnectionRegression.SettingsNameAsync),
+    ("Large mobile content framing", ConnectionRegression.LargeWebSocketFrameAsync),
+    ("1.8 quick-transfer policy and edge behavior", Regression18.PolicyAsync),
     ("File chunk round trip", FileChunkRoundTripAsync),
     ("Path traversal rejection", PathTraversalRejectionAsync),
     ("Duplicate file naming", DuplicateNamingAsync),
@@ -254,7 +258,7 @@ static async Task RemoteMouseProtocolPayloadsAsync()
     var move = ProtocolSerializer.Deserialize<MouseMoveMessage>(frame);
     Assert(frame.Type == MessageType.MouseMove, "Remote mouse frame type mismatch.");
     Assert(move.SessionId == sessionId && move.X == 0.25 && move.Y == 0.75, "Remote mouse payload mismatch.");
-    Assert(ProtocolSerializer.ProtocolVersion == 5, "CrowLink 1.5 must preserve PC protocol version 5.");
+    Assert(ProtocolSerializer.ProtocolVersion == 5, "CrowLink 1.8 must preserve PC protocol version 5.");
 }
 
 static async Task KeyboardProtocolPayloadsAsync()
@@ -401,8 +405,8 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
 {
     var xamlPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml");
     var xaml = await File.ReadAllTextAsync(xamlPath);
-    Assert(xaml.Contains("Title=\"CrowLink Connect/Share/Control\"", StringComparison.Ordinal), "The compact window title is missing.");
-    Assert(xaml.Contains("CrowLink 1.5", StringComparison.Ordinal), "The in-window CrowLink 1.5 version title is missing.");
+    Assert(xaml.Contains("Title=\"{x:Static app:AppIdentity.Title}\"", StringComparison.Ordinal) && CrowLink.AppIdentity.Version.ToString(3) == "1.8.1", "The window must use the shared app version.");
+    Assert(xaml.Contains("Text=\"{x:Static app:AppIdentity.Title}\"", StringComparison.Ordinal), "The header must use the shared app version.");
     Assert(xaml.Contains("ConnectionStatusText", StringComparison.Ordinal), "The persistent connection-status badge is missing.");
     Assert(xaml.Contains("ItemsSource=\"{Binding Devices}\"", StringComparison.Ordinal) && xaml.Contains("<ComboBox", StringComparison.Ordinal), "Connect devices must use a pull-down menu.");
     Assert(xaml.Contains("Text=\"{Binding Name}\"", StringComparison.Ordinal), "Device pull-down must render the actual device name.");
@@ -486,7 +490,7 @@ static async Task MobileWebServerAndPairingAsync()
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
     var html = await http.GetStringAsync($"http://127.0.0.1:{port}/mobile");
-    Assert(html.Contains("CrowLink 1.5", StringComparison.Ordinal) && html.Contains("TOUCHPAD", StringComparison.Ordinal), "Mobile web touchpad page was not served.");
+    Assert(html.Contains("CrowLink 1.8", StringComparison.Ordinal) && html.Contains("TOUCHPAD", StringComparison.Ordinal), "Mobile web touchpad page was not served.");
     Assert(html.Contains("requestAnimationFrame", StringComparison.Ordinal), "Mobile move coalescing is missing.");
     Assert(html.Contains("inputmode=\"numeric\"", StringComparison.Ordinal) &&
            html.IndexOf("<section id=\"pair\"", StringComparison.Ordinal) > html.IndexOf("</main>", StringComparison.Ordinal),
@@ -519,6 +523,7 @@ static async Task MobileWebServerAndPairingAsync()
     Assert(responseText.Contains("\"monitors\"", StringComparison.Ordinal) && responseText.Contains("\"sensitivity\"", StringComparison.Ordinal),
         "Approved mobile client did not receive monitor and sensitivity settings.");
     Assert(service.HasActiveSession && service.Session?.DeviceName == "TEST PHONE", "Approved mobile session was not registered.");
+    await Regression181.CheckMobileExchangeAsync(service, socket, timeout.Token);
     await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "test complete", timeout.Token);
     for (var attempt = 0; attempt < 40 && service.IsRunning; attempt++)
     {
@@ -548,6 +553,7 @@ static Task TransferItemRendersInWpfAsync()
         try
         {
             AppContext.SetSwitch("CrowLink.DisableGlobalExceptionDialogs", true);
+            AppContext.SetSwitch("CrowLink.DisableStartup", true);
             application = new CrowLink.App();
             application.InitializeComponent();
             host = AppHost.CreateAsync(settingsPath: testSettingsPath).GetAwaiter().GetResult();
@@ -621,7 +627,7 @@ static Task TransferItemRendersInWpfAsync()
             window.UpdateLayout();
             window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             texts = FindVisualChildren<TextBlock>(window).Select(item => item.Text).ToArray();
-            Assert(texts.Contains("Explorer Bridge · OLE Lab"), "Explorer feature page was not rendered.");
+            Assert(texts.Contains("Quick · 신속 전송"), "Quick feature page was not rendered.");
             viewModel.ShowMobileCommand.Execute(null);
             window.UpdateLayout();
             window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -634,6 +640,8 @@ static Task TransferItemRendersInWpfAsync()
             var crowPage = (SolidColorBrush)application.Resources["PageBrush"];
             Assert(crowPage.Color == Color.FromRgb(0x05, 0x06, 0x08), "Crow black palette did not apply.");
             File.Delete(queuedFile);
+            Regression18.CheckInk(host);
+            Regression181.CheckSelection(host);
             completion.SetResult();
         }
         catch (Exception exception)

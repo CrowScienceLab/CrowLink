@@ -46,6 +46,7 @@ internal sealed class GlobalMouseTracker : IDisposable
     private bool _ignoreCenteredMove;
     private int _centerX;
     private int _centerY;
+    private IReadOnlyList<CrowLink.Protocol.MonitorDescriptorMessage> _localMonitors = [];
 
     public GlobalMouseTracker(MouseTransitionEdge edge, int remoteHeight)
     {
@@ -62,6 +63,11 @@ internal sealed class GlobalMouseTracker : IDisposable
     public event Action? EmergencyReleased;
     public event Action<ushort, ushort, bool, bool>? Keyboard;
     public event Action? SecureShortcutBlocked;
+    public Func<bool>? CanQuickDrag { get; set; }
+    public event Action? QuickDragStarted;
+    public event Action? QuickDropRequested;
+    private bool _leftHeld;
+    private bool _quickDrag;
 
     public void Start()
     {
@@ -107,6 +113,7 @@ internal sealed class GlobalMouseTracker : IDisposable
         {
             _threadId = NativeMethods.GetCurrentThreadId();
             _boundary = new MouseBoundaryTracker(_edge);
+            _localMonitors = MouseInputInjector.GetMonitorInfo().Monitors;
             _hook = NativeMethods.SetWindowsHookEx(WhMouseLl, _hookCallback, NativeMethods.GetModuleHandle(null), 0);
             if (_hook == 0)
             {
@@ -119,10 +126,8 @@ internal sealed class GlobalMouseTracker : IDisposable
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
 
-            if (!NativeMethods.RegisterHotKey(0, EmergencyHotkeyId, ModControl | ModAlt, VkEscape))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
+            // MainWindow owns the app-wide emergency hotkey. The keyboard hook
+            // also handles it while remote input is being intercepted.
             _started.Set();
             while (NativeMethods.GetMessage(out var message, 0, 0, 0) > 0)
             {
@@ -140,7 +145,6 @@ internal sealed class GlobalMouseTracker : IDisposable
         }
         finally
         {
-            NativeMethods.UnregisterHotKey(0, EmergencyHotkeyId);
             if (_hook != 0)
             {
                 NativeMethods.UnhookWindowsHookEx(_hook);
@@ -164,12 +168,14 @@ internal sealed class GlobalMouseTracker : IDisposable
         }
 
         var data = Marshal.PtrToStructure<MsllHookStruct>(lParam);
-        if ((data.Flags & LlMouseInjected) != 0)
+        if ((data.Flags & LlMouseInjected) != 0 && data.ExtraInfo == MouseInputInjector.CrowLinkInputTag)
         {
             return NativeMethods.CallNextHookEx(_hook, code, wParam, lParam);
         }
 
         var message = unchecked((int)wParam);
+        if (message == WmLButtonDown) _leftHeld = true;
+        if (message == WmLButtonUp) _leftHeld = false;
         if (!_boundary.IsRemote)
         {
             if (message != WmMouseMove)
@@ -181,13 +187,23 @@ internal sealed class GlobalMouseTracker : IDisposable
             var top = NativeMethods.GetSystemMetrics(77);
             var width = Math.Max(1, NativeMethods.GetSystemMetrics(78));
             var height = Math.Max(1, NativeMethods.GetSystemMetrics(79));
+            var row = _localMonitors.Where(m => data.Point.Y >= m.Y && data.Point.Y < m.Y + m.Height).ToArray();
+            if (row.Length > 0)
+            {
+                left = row.Min(m => m.X);
+                width = row.Max(m => m.X + m.Width) - left;
+            }
             var atEdge = _edge == MouseTransitionEdge.Right
                 ? data.Point.X >= left + width - 1
                 : data.Point.X <= left;
             if (_boundary.TryEnter(data.Point.X, data.Point.Y, left, top, width, height, _wasAtEdge))
             {
+                _quickDrag = _leftHeld && CanQuickDrag?.Invoke() == true;
+                if (_quickDrag) QuickDragStarted?.Invoke();
                 _centerX = left + (width / 2);
                 _centerY = top + (height / 2);
+                var current = _localMonitors.FirstOrDefault(m => data.Point.X >= m.X - 1 && data.Point.X <= m.X + m.Width && data.Point.Y >= m.Y && data.Point.Y < m.Y + m.Height);
+                if (current is not null) { _centerX = current.X + current.Width / 2; _centerY = current.Y + current.Height / 2; }
                 _ignoreCenteredMove = true;
                 NativeMethods.SetCursorPos(_centerX, _centerY);
                 RemoteModeChanged?.Invoke(true);
@@ -224,6 +240,17 @@ internal sealed class GlobalMouseTracker : IDisposable
             return 1;
         }
 
+        if (message == WmLButtonUp && _quickDrag)
+        {
+            _quickDrag = false;
+            QuickDropRequested?.Invoke();
+            // Cancel Explorer's local OLE move; the source file is copied, never removed.
+            MouseInputInjector.Keyboard(0x1B, 0, true, false);
+            MouseInputInjector.Keyboard(0x1B, 0, false, false);
+            MouseInputInjector.Button("Left", false);
+            return 1;
+        }
+
         if (TryGetButton(message, out var button, out var isDown))
         {
             Button?.Invoke(button, isDown);
@@ -247,7 +274,7 @@ internal sealed class GlobalMouseTracker : IDisposable
         }
 
         var data = Marshal.PtrToStructure<KbdLlHookStruct>(lParam);
-        if ((data.Flags & LlKeyboardInjected) != 0)
+        if ((data.Flags & LlKeyboardInjected) != 0 && data.ExtraInfo == MouseInputInjector.CrowLinkInputTag)
         {
             return NativeMethods.CallNextHookEx(_keyboardHook, code, wParam, lParam);
         }

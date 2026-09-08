@@ -22,6 +22,7 @@ public sealed class TransferItem : ObservableObject
     public Guid BatchId { get; }
     public string DisplayName { get; }
     public bool IsIncoming { get; }
+    public string? ReceivedPath { get; set; }
 
     public long TotalBytes
     {

@@ -29,7 +29,7 @@ internal sealed class MobileWebSocket(Stream stream) : IAsyncDisposable
         return new MobileWebSocket(stream);
     }
 
-    public async Task<string?> ReceiveTextAsync(CancellationToken cancellationToken)
+    public async Task<string?> ReceiveTextAsync(CancellationToken cancellationToken, int maximumPayloadBytes = MaximumPayloadBytes)
     {
         while (true)
         {
@@ -61,7 +61,7 @@ internal sealed class MobileWebSocket(Stream stream) : IAsyncDisposable
                 length = BinaryPrimitives.ReadUInt64BigEndian(extended);
             }
 
-            if (length > MaximumPayloadBytes)
+            if (length > (ulong)maximumPayloadBytes)
             {
                 throw new InvalidDataException("WebSocket frame is too large.");
             }
@@ -107,11 +107,18 @@ internal sealed class MobileWebSocket(Stream stream) : IAsyncDisposable
             {
                 buffer.WriteByte((byte)payload.Length);
             }
-            else
+            else if (payload.Length <= ushort.MaxValue)
             {
                 buffer.WriteByte(126);
                 Span<byte> lengthBytes = stackalloc byte[2];
                 BinaryPrimitives.WriteUInt16BigEndian(lengthBytes, (ushort)payload.Length);
+                buffer.Write(lengthBytes);
+            }
+            else
+            {
+                buffer.WriteByte(127);
+                Span<byte> lengthBytes = stackalloc byte[8];
+                BinaryPrimitives.WriteUInt64BigEndian(lengthBytes, (ulong)payload.Length);
                 buffer.Write(lengthBytes);
             }
 

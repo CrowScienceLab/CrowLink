@@ -17,7 +17,7 @@ public static class ExplorerStagingCleaner
             if (!fullPath.StartsWith(receivePrefix, StringComparison.OrdinalIgnoreCase) ||
                 fullPath.Equals(receiveRoot, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException("Explorer staging 경로가 수신 폴더 밖에 있습니다.");
+                throw new InvalidOperationException("Quick 임시 경로가 수신 폴더 밖에 있습니다.");
             }
         }
 

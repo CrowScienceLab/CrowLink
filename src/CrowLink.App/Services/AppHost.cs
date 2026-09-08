@@ -57,7 +57,7 @@ public sealed class AppHost : IAsyncDisposable
         var settings = new SettingsService(settingsPath);
         var appSettings = await settings.LoadAsync(cancellationToken).ConfigureAwait(false);
         var log = new LogService();
-        await log.InfoAsync("Application started").ConfigureAwait(false);
+        await log.InfoAsync($"Application started: CrowLink {typeof(AppHost).Assembly.GetName().Version}; {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}").ConfigureAwait(false);
         var discovery = new DeviceDiscoveryService(appSettings, log);
         var pairing = new PairingService(settings, log);
         var connections = new ConnectionService(appSettings, pairing, log);
@@ -65,6 +65,7 @@ public sealed class AppHost : IAsyncDisposable
         var clipboard = new ClipboardSharingService(connections, log);
         var remoteMouse = new RemoteMouseService(connections, log);
         var explorer = new ExplorerBridgeService(connections, transfers, log, appSettings);
+        explorer.IsControlPeer = remoteMouse.IsActivePeer;
         var mobileTouchpad = new MobileTouchpadService(appSettings, log);
         var theme = new ThemeService();
         return new AppHost(settings, log, discovery, pairing, connections, transfers, clipboard, remoteMouse, explorer, mobileTouchpad, theme);

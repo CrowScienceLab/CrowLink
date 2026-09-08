@@ -6,6 +6,7 @@ namespace CrowLink.Services.RemoteMouse;
 
 internal static class MouseInputInjector
 {
+    internal const uint CrowLinkInputTag = 0x43524F57;
     private const uint InputMouse = 0;
     private const uint Move = 0x0001;
     private const uint LeftDown = 0x0002;
@@ -96,14 +97,25 @@ internal static class MouseInputInjector
         Send(keyboardInput);
     }
 
+    public static void Text(string text)
+    {
+        foreach (var value in text)
+        {
+            Send(new KeyboardInput { ScanCode = value, Flags = 0x0004 });
+            Send(new KeyboardInput { ScanCode = value, Flags = 0x0004 | KeyUp });
+        }
+    }
+
     private static void Send(MouseInput mouseInput)
     {
+        mouseInput.ExtraInfo = CrowLinkInputTag;
         var input = new Input { Type = InputMouse, Data = new InputUnion { Mouse = mouseInput } };
         Send(input);
     }
 
     private static void Send(KeyboardInput keyboardInput)
     {
+        keyboardInput.ExtraInfo = CrowLinkInputTag;
         var input = new Input { Type = 1, Data = new InputUnion { Keyboard = keyboardInput } };
         Send(input);
     }

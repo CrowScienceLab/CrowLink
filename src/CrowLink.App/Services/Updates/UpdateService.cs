@@ -2,8 +2,8 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 
 namespace CrowLink.Services.Updates;
 
@@ -37,7 +37,7 @@ public static class UpdateService
             {
                 var name = asset.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
                 if (name?.Contains("Setup", StringComparison.OrdinalIgnoreCase) == true &&
-                    name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                    name.EndsWith(RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "win-arm64.exe" : "win-x64.exe", StringComparison.OrdinalIgnoreCase) &&
                     asset.TryGetProperty("browser_download_url", out var urlElement))
                 {
                     installerUrl = urlElement.GetString();
@@ -55,14 +55,14 @@ public static class UpdateService
         return new UpdateCheckResult(state, CurrentVersion, latest, pageUrl ?? ReleasesUrl, installerUrl);
     }
 
-    public static void OpenDownload(UpdateCheckResult result) => Open(result.InstallerUrl ?? result.ReleasePageUrl);
+    public static void OpenDownload(UpdateCheckResult result) => Open(
+        result.State == UpdateCheckState.UpdateAvailable
+            ? result.InstallerUrl ?? result.ReleasePageUrl
+            : result.ReleasePageUrl);
 
     public static void OpenReleasePage() => Open(ReleasesUrl);
 
-    private static Version CurrentVersion =>
-        Assembly.GetEntryAssembly()?.GetName().Version is { } version
-            ? new Version(version.Major, version.Minor, Math.Max(0, version.Build))
-            : new Version(1, 5, 0);
+    private static Version CurrentVersion => AppIdentity.Version;
 
     private static Version? ParseVersion(string? value)
     {

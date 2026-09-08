@@ -9,6 +9,8 @@ namespace CrowLink.Services.Explorer;
 
 public sealed class ExplorerBridgeService : IAsyncDisposable
 {
+    public static bool IsEnabled => true;
+    public Func<Guid, bool>? IsControlPeer { get; set; }
     private const int MaxRootsPerPackage = 32;
     private static readonly TimeSpan ApprovalTimeout = TimeSpan.FromSeconds(30);
     private readonly ConnectionService _connections;
@@ -17,6 +19,7 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
     private readonly AppSettings _settings;
     private readonly ConcurrentDictionary<Guid, OutgoingPackage> _outgoing = new();
     private readonly ConcurrentDictionary<Guid, IncomingPackage> _incoming = new();
+    private readonly ConcurrentDictionary<Guid, ExplorerDragItemDescriptor> _pendingFiles = new();
 
     public ExplorerBridgeService(
         ConnectionService connections,
@@ -31,9 +34,14 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
         _connections.MessageReceived += OnMessageReceivedAsync;
         _connections.DeviceDisconnected += OnDeviceDisconnected;
         _transfers.IncomingRootCompleted += OnIncomingRootCompleted;
+        _transfers.AcceptExplorerMetadata = (peer, metadata) =>
+            _settings.EnableQuickTransfer && IsControlPeer?.Invoke(peer) == true &&
+            _incoming.TryGetValue(metadata.ExplorerPackageId, out var package) && package.DeviceId == peer &&
+            metadata.IsRoot && !metadata.IsDirectory && QuickTransferPolicy.IsAllowed(metadata.RelativePath) &&
+            _pendingFiles.TryRemove(metadata.ExplorerPackageId, out var expected) &&
+            expected.Name == metadata.RelativePath && expected.Size == metadata.Size;
     }
 
-    public event Func<ExplorerDragOfferRequest, Task<bool>>? OfferApprovalRequested;
     public event EventHandler<ExplorerPackageChangedEventArgs>? PackageChanged;
 
     public async Task<bool> ConsumeIncomingPackageAsync(Guid packageId)
@@ -67,6 +75,8 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
         IEnumerable<string> paths,
         CancellationToken cancellationToken = default)
     {
+        if (!_settings.EnableQuickTransfer || IsControlPeer?.Invoke(connection.Device.Id) != true)
+            throw new InvalidOperationException("양쪽 PC에서 입력 공유와 신속 전송을 먼저 켜세요.");
         var normalized = paths
             .Select(Path.GetFullPath)
             .Where(path => File.Exists(path) || Directory.Exists(path))
@@ -75,8 +85,10 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             .ToArray();
         if (normalized.Length == 0)
         {
-            throw new InvalidOperationException("Explorer에서 가져온 파일이나 폴더가 없습니다.");
+            throw new InvalidOperationException("Quick으로 보낼 파일가 없습니다.");
         }
+        if (normalized.Length != 1 || !File.Exists(normalized[0]) || !QuickTransferPolicy.IsAllowed(Path.GetFileName(normalized[0])))
+            throw new InvalidOperationException("신속 전송은 문서·미디어·ZIP 파일 한 개만 지원합니다. 여러 파일이나 폴더는 Share를 이용하세요.");
 
         if (normalized.Length > MaxRootsPerPackage)
         {
@@ -93,7 +105,7 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
         if (!_outgoing.TryAdd(packageId, package))
         {
-            throw new InvalidOperationException("Explorer package identifier collision.");
+            throw new InvalidOperationException("Quick package identifier collision.");
         }
 
         Publish(package, "상대 PC의 수락을 기다리는 중");
@@ -107,11 +119,11 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             var approved = await package.Approval.Task.WaitAsync(ApprovalTimeout, cancellationToken).ConfigureAwait(false);
             if (!approved)
             {
-                Publish(package, "상대 PC에서 Explorer 전송을 거부했습니다.");
+                Publish(package, "상대 PC에서 Quick 전송을 거부했습니다.");
                 return;
             }
 
-            Publish(package, "원격 Explorer 패키지 전송 중");
+            Publish(package, "원격 Quick 파일 전송 중");
             var transferred = await _transfers.SendPathsAsync(
                 connection,
                 normalized,
@@ -125,8 +137,8 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             }
 
             Publish(package, package.IsReady
-                ? "상대 PC에서 Explorer 드래그 준비 완료"
-                : "상대 PC에서 Explorer 드래그 준비 중");
+                ? "상대 PC에서 Quick 파일 수신 완료"
+                : "상대 PC에서 Quick 파일 수신 중");
         }
         catch (TimeoutException)
         {
@@ -167,27 +179,11 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
     {
         var offer = ProtocolSerializer.Deserialize<ExplorerDragOfferMessage>(args.Message);
         ValidateOffer(offer);
-        var handlers = OfferApprovalRequested?.GetInvocationList()
-            .Cast<Func<ExplorerDragOfferRequest, Task<bool>>>()
-            .ToArray();
-        var approved = handlers is { Length: > 0 };
-        if (approved)
+        if (!_settings.EnableQuickTransfer || IsControlPeer?.Invoke(args.Connection.Device.Id) != true ||
+            offer.Items.Count != 1 || offer.Items[0].IsDirectory || !QuickTransferPolicy.IsAllowed(offer.Items[0].Name))
         {
-            foreach (var handler in handlers!)
-            {
-                approved &= await handler(new ExplorerDragOfferRequest(
-                    args.Connection,
-                    offer.PackageId,
-                    offer.Items)).ConfigureAwait(false);
-            }
-        }
-
-        if (!approved)
-        {
-            await args.Connection.SendJsonAsync(
-                MessageType.ExplorerDragReject,
-                new ExplorerDragResponseMessage(offer.PackageId),
-                CancellationToken.None).ConfigureAwait(false);
+            await args.Connection.SendJsonAsync(MessageType.ExplorerDragReject,
+                new ExplorerDragResponseMessage(offer.PackageId), CancellationToken.None).ConfigureAwait(false);
             return;
         }
 
@@ -199,10 +195,11 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             offer.Items.Count);
         if (!_incoming.TryAdd(offer.PackageId, package))
         {
-            throw new InvalidDataException("Duplicate Explorer drag package.");
+            throw new InvalidDataException("Duplicate Quick transfer package.");
         }
 
         Publish(package, "원격 파일 수신 대기 중", [], false);
+        _pendingFiles[offer.PackageId] = offer.Items[0];
         await args.Connection.SendJsonAsync(
             MessageType.ExplorerDragAccept,
             new ExplorerDragResponseMessage(offer.PackageId),
@@ -224,7 +221,7 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
         if (_outgoing.TryGetValue(ready.PackageId, out var package) && package.DeviceId == args.Connection.Device.Id)
         {
             package.IsReady = true;
-            Publish(package, "상대 PC에서 Explorer 드래그 준비 완료");
+            Publish(package, "상대 PC에서 Quick 파일 수신 완료");
         }
     }
 
@@ -269,7 +266,7 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
         }
 
         var paths = package.RootPaths.ToArray();
-        Publish(package, "Explorer로 드래그할 준비 완료", paths, true);
+        Publish(package, "탐색기로 드래그할 준비 완료", paths, true);
         _ = NotifyReadyAsync(package);
     }
 
@@ -354,7 +351,7 @@ public sealed class ExplorerBridgeService : IAsyncDisposable
             offer.Items.Any(item => item.Size < 0 || string.IsNullOrWhiteSpace(item.Name) ||
                 !string.Equals(Path.GetFileName(item.Name), item.Name, StringComparison.Ordinal) || item.Name is "." or ".."))
         {
-            throw new InvalidDataException("Invalid Explorer drag offer.");
+            throw new InvalidDataException("Invalid Quick transfer offer.");
         }
     }
 
