@@ -30,6 +30,8 @@ node tests/mobile-gestures.cjs
 
 설치 파일 제작은 [installer/README.md](installer/README.md)를 참고하세요.
 
+개발 작업 위치와 산출물 관리 원칙은 [docs/WORKSPACE.md](docs/WORKSPACE.md)에 기록합니다. 이 PC에서는 `D:\App coding\CrowLink`를 기준으로 작업합니다.
+
 ## 제한 및 보안
 
 기본 포트: PC TCP 45100, 검색 UDP 45101, Mobile TCP 45102. 신뢰하는 사설망에서 필요한 통신만 허용하세요. 학교·게스트 Wi-Fi의 단말 격리가 있으면 같은 SSID여도 연결되지 않을 수 있습니다. 인터넷 포트 포워딩은 권장하지 않습니다. Mobile HTTP/WS는 암호화되지 않습니다.
