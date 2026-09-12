@@ -1,4 +1,4 @@
-# CrowLink 1.8.1 Mobile Touchpad
+# CrowLink 1.8.2 Mobile Touchpad
 
 ## 연결 흐름
 

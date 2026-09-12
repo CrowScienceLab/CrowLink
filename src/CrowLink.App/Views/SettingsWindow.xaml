@@ -100,8 +100,8 @@
                 </Border>
                 <Border Margin="0,9,0,0" Style="{StaticResource SettingCardStyle}"><StackPanel>
                     <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" Text="앱 업데이트" />
-                    <TextBlock Margin="0,5,0,8" FontSize="10" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Text="GitHub의 최신 릴리스를 확인하고 이 PC에 맞는 설치파일을 다운로드합니다." />
-                    <Button x:Name="UpdateButton" HorizontalAlignment="Left" Style="{StaticResource SecondaryButtonStyle}" Click="UpdateButton_Click" Content="업데이트 확인 · 다운로드" />
+                    <TextBlock Margin="0,5,0,8" FontSize="10" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Text="GitHub의 최신 릴리스를 열고 Windows 공용 설치 파일을 다운로드합니다." />
+                    <Button x:Name="UpdateButton" HorizontalAlignment="Left" Style="{StaticResource SecondaryButtonStyle}" Click="UpdateButton_Click" Content="업데이트 확인 · GitHub 열기" />
                 </StackPanel></Border>
             </StackPanel>
         </ScrollViewer>

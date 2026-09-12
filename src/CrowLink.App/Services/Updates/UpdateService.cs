@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Runtime.InteropServices;
 
 namespace CrowLink.Services.Updates;
 
@@ -36,8 +35,7 @@ public static class UpdateService
             foreach (var asset in assets.EnumerateArray())
             {
                 var name = asset.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : null;
-                if (name?.Contains("Setup", StringComparison.OrdinalIgnoreCase) == true &&
-                    name.EndsWith(RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "win-arm64.exe" : "win-x64.exe", StringComparison.OrdinalIgnoreCase) &&
+                if (IsWindowsInstallerAsset(name) &&
                     asset.TryGetProperty("browser_download_url", out var urlElement))
                 {
                     installerUrl = urlElement.GetString();
@@ -55,10 +53,10 @@ public static class UpdateService
         return new UpdateCheckResult(state, CurrentVersion, latest, pageUrl ?? ReleasesUrl, installerUrl);
     }
 
-    public static void OpenDownload(UpdateCheckResult result) => Open(
-        result.State == UpdateCheckState.UpdateAvailable
-            ? result.InstallerUrl ?? result.ReleasePageUrl
-            : result.ReleasePageUrl);
+    public static void OpenDownload(UpdateCheckResult result) => Open(result.ReleasePageUrl);
+
+    public static bool IsWindowsInstallerAsset(string? name) =>
+        name?.EndsWith("-Setup-win-x64.exe", StringComparison.OrdinalIgnoreCase) == true;
 
     public static void OpenReleasePage() => Open(ReleasesUrl);
 

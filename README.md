@@ -1,10 +1,10 @@
-# CrowLink 1.8.1
+# CrowLink 1.8.2
 
 Windows PC 간 연결·입력 공유·파일 전송과 휴대폰 브라우저 터치패드를 제공하는 WPF 앱입니다. © 2026 CrowScienceLab · MIT License.
 
 ## 설치와 메뉴
 
-[최신 릴리스](https://github.com/CrowScienceLab/CrowLink/releases/latest)에서 일반 PC는 win-x64, Windows ARM PC는 win-arm64 설치 파일을 선택하세요. .NET 런타임이 포함됩니다.
+[최신 릴리스](https://github.com/CrowScienceLab/CrowLink/releases/latest)에서 `win-x64` Windows 공용 설치 파일을 받으세요. Intel/AMD Windows와 x64 에뮬레이션을 지원하는 Windows 11 ARM에서 같은 파일을 사용합니다. .NET 런타임이 포함됩니다. ARM64 전용 패키지는 별도로 게시하지 않습니다.
 
 - **Connect**: 같은 사설 LAN의 장치를 검색하고 연결을 승인합니다. 첫 검색 장치와 이전 연결 성공 장치를 우선 표시합니다.
 - **Control**: 승인된 PC 사이의 마우스·키보드 입력 공유. 화면 배치를 확인하고 공유를 시작합니다. Ctrl+Alt+Esc로 중지합니다.
@@ -14,7 +14,7 @@ Windows PC 간 연결·입력 공유·파일 전송과 휴대폰 브라우저 �
 
 기본 테마는 Black Crow이며 White & Light Pink도 선택할 수 있습니다. 업데이트 확인·설치 파일 다운로드는 **설정 → 앱 업데이트**에 있습니다.
 
-[한국어 사용 설명서](docs/CrowLink-1.8.1-Manual-KO.html) · [1.8.1 작업 및 검증 내역](docs/RELEASE-v1.8.1.md)
+[한국어 사용 설명서](docs/CrowLink-1.8.2-Manual-KO.html) · [1.8.2 작업 및 검증 내역](docs/RELEASE-v1.8.2.md)
 
 ## 개발 및 검증
 

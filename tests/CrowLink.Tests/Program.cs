@@ -405,7 +405,9 @@ static async Task FeatureNavigationUsesSvgPathsAsync()
 {
     var xamlPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml");
     var xaml = await File.ReadAllTextAsync(xamlPath);
-    Assert(xaml.Contains("Title=\"{x:Static app:AppIdentity.Title}\"", StringComparison.Ordinal) && CrowLink.AppIdentity.Version.ToString(3) == "1.8.1", "The window must use the shared app version.");
+    Assert(xaml.Contains("Title=\"{x:Static app:AppIdentity.Title}\"", StringComparison.Ordinal) && CrowLink.AppIdentity.Version.ToString(3) == "1.8.2", "The window must use the shared app version.");
+    Assert(CrowLink.Services.Updates.UpdateService.IsWindowsInstallerAsset("CrowLink-1.8.2-Setup-win-x64.exe"), "The shared Windows installer must be selected.");
+    Assert(!CrowLink.Services.Updates.UpdateService.IsWindowsInstallerAsset("CrowLink-1.8.2-Setup-win-arm64.exe"), "ARM-specific installers must not be selected or published.");
     Assert(xaml.Contains("Text=\"{x:Static app:AppIdentity.Title}\"", StringComparison.Ordinal), "The header must use the shared app version.");
     Assert(xaml.Contains("ConnectionStatusText", StringComparison.Ordinal), "The persistent connection-status badge is missing.");
     Assert(xaml.Contains("ItemsSource=\"{Binding Devices}\"", StringComparison.Ordinal) && xaml.Contains("<ComboBox", StringComparison.Ordinal), "Connect devices must use a pull-down menu.");

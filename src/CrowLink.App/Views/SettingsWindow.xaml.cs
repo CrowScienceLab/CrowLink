@@ -39,7 +39,7 @@ public partial class SettingsWindow : Window
             var (message, open) = result.State switch
             {
                 UpdateCheckState.UpdateAvailable =>
-                    ($"CrowLink {result.LatestVersion} 버전을 사용할 수 있습니다.\n\n설치 파일 다운로드 페이지를 여시겠습니까?", true),
+                    ($"CrowLink {result.LatestVersion} 버전을 사용할 수 있습니다.\n\nGitHub 릴리스 페이지를 열어 Windows 설치 파일을 다운로드하시겠습니까? 다운로드 후 설치 파일을 실행하면 업그레이드됩니다.", true),
                 UpdateCheckState.Current =>
                     ($"현재 CrowLink {result.CurrentVersion} 최신 버전을 사용 중입니다.\n\n릴리스 페이지를 여시겠습니까?", true),
                 UpdateCheckState.SignInRequired =>
@@ -66,7 +66,7 @@ public partial class SettingsWindow : Window
         }
         finally
         {
-            UpdateButton.Content = "업데이트 확인 · 다운로드";
+            UpdateButton.Content = "업데이트 확인 · GitHub 열기";
             UpdateButton.IsEnabled = true;
         }
     }
