@@ -1,41 +1,20 @@
-# CrowLink 1.8.2
+# CrowLink 2.01
 
-Windows PC 간 연결·입력 공유·파일 전송과 휴대폰 브라우저 터치패드를 제공하는 WPF 앱입니다. © 2026 CrowScienceLab · MIT License.
+Windows PC 연결·마우스와 키보드 공유·파일 전송·휴대폰 브라우저 터치패드와 채팅을 제공하는 무료 앱입니다.
 
-## 설치와 메뉴
+[최신 설치 파일](https://github.com/CrowScienceLab/CrowLink/releases/latest) · [사용 설명서](docs/CrowLink-2.0.1-Manual-KO.html) · [릴리스 노트](docs/RELEASE-v2.0.1.md)
 
-[최신 릴리스](https://github.com/CrowScienceLab/CrowLink/releases/latest)에서 `win-x64` Windows 공용 설치 파일을 받으세요. Intel/AMD Windows와 x64 에뮬레이션을 지원하는 Windows 11 ARM에서 같은 파일을 사용합니다. .NET 런타임이 포함됩니다. ARM64 전용 패키지는 별도로 게시하지 않습니다.
+표시 버전 2.01, Windows 숫자 버전 2.0.1.0. Windows 10 2004 이상 x64. .NET 런타임이 포함됩니다.
 
-- **Connect**: 같은 사설 LAN의 장치를 검색하고 연결을 승인합니다. 첫 검색 장치와 이전 연결 성공 장치를 우선 표시합니다.
-- **Control**: 승인된 PC 사이의 마우스·키보드 입력 공유. 화면 배치를 확인하고 공유를 시작합니다. Ctrl+Alt+Esc로 중지합니다.
-- **Share**: 여러 파일·폴더와 텍스트·PNG 클립보드 전송, 완료 알림, 수신 파일의 탐색기 복사 드래그.
-- **Quick**: 양쪽 설정에서 허용한 연결에서 지원 문서·미디어·ZIP 한 파일을 건별 승인 없이 복사합니다. 자동 실행하거나 송신 원본을 삭제하지 않습니다. ZIP 내부 안전성을 보장하지 않습니다.
-- **Mobile**: QR·임시 코드·PC 승인으로 연결하는 터치패드, 펜, 레이저와 화이트보드, 브라우저 범위의 텍스트·이미지 교환.
+- Connect: 로컬 PC 검색·주소 연결·상대 승인.
+- Control: PC 마우스·키보드 공유, 모니터 경계 전환, Ctrl+Alt+Esc 중지.
+- Share / Quick: 파일·폴더·클립보드 공유와 허용된 PC 간 신속 복사.
+- Mobile: QR·6자리 코드·PC 승인으로 휴대폰 브라우저 터치패드·펜·키보드·채팅 사용.
 
-기본 테마는 Black Crow이며 White & Light Pink도 선택할 수 있습니다. 업데이트 확인·설치 파일 다운로드는 **설정 → 앱 업데이트**에 있습니다.
+텍스트는 복사만 지원하고 자동 저장·다운로드하지 않습니다. 사진과 첨부는 수락 후 전송하여 완료 즉시 저장합니다. PC는 설정의 수신 폴더/MobileChat에 저장하며 휴대폰은 브라우저 다운로드를 자동 요청합니다. 실제 휴대폰 저장 결과는 브라우저 다운로드 목록에서 확인하세요. 실패·취소의 미완성 자료는 정리합니다.
 
-[한국어 사용 설명서](docs/CrowLink-1.8.2-Manual-KO.html) · [1.8.2 작업 및 검증 내역](docs/RELEASE-v1.8.2.md)
+EXE 설치는 바탕화면 바로가기 여부를 묻고 Store판은 첫 실행 때 묻습니다. 앱 시작 시 각 배포 채널에서 업데이트를 확인합니다.
 
-## 개발 및 검증
+Mobile HTTP/WebSocket은 암호화되지 않습니다. 신뢰하는 동일 네트워크에서 사용하고 인터넷 포트를 공개하지 마세요.
 
-Windows와 .NET SDK 10.0.302, 모바일 스크립트 테스트용 Node.js를 사용합니다.
-
-```powershell
-dotnet restore CrowLink.sln
-dotnet build CrowLink.sln -c Release
-dotnet run --project src/CrowLink.App/CrowLink.App.csproj
-dotnet run --project tests/CrowLink.Tests/CrowLink.Tests.csproj -c Release
-node tests/mobile-gestures.cjs
-```
-
-설치 파일 제작은 [installer/README.md](installer/README.md)를 참고하세요.
-
-개발 작업 위치와 산출물 관리 원칙은 [docs/WORKSPACE.md](docs/WORKSPACE.md)에 기록합니다. 이 PC에서는 `D:\App coding\CrowLink`를 기준으로 작업합니다.
-
-## 제한 및 보안
-
-기본 포트: PC TCP 45100, 검색 UDP 45101, Mobile TCP 45102. 신뢰하는 사설망에서 필요한 통신만 허용하세요. 학교·게스트 Wi-Fi의 단말 격리가 있으면 같은 SSID여도 연결되지 않을 수 있습니다. 인터넷 포트 포워딩은 권장하지 않습니다. Mobile HTTP/WS는 암호화되지 않습니다.
-
-휴대폰의 카카오톡 등 다른 앱을 PC가 직접 제어하지 않습니다. 브라우저에서 받은 글·이미지를 복사/저장해 다른 앱에 사용합니다. PC 화면의 주기적 미리보기는 제거했고 펜 영역은 3×3 가이드와 로컬 필기 궤적을 표시합니다.
-
-일반 권한 앱은 관리자 권한 창을 제어할 수 없고 Ctrl+Alt+Delete는 전달하지 않습니다. Quick은 원격 OLE 객체를 연결하는 완전한 파일 관리자 확장이 아니며 수신 폴더에 복사합니다. 자동 테스트 통과는 물리 PC 간 입력 공유, ARM 하드웨어 및 모든 휴대폰 브라우저 검증 완료를 의미하지 않습니다.
+이 릴리스는 설치 파일과 사용 문서를 제공합니다. 릴리스 첨부 파일이 현행 배포본이며 저장소의 과거 개발 소스와 구분됩니다. © 2026 CrowScienceLab · MIT License.
